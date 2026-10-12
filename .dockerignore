@@ -1,0 +1,12 @@
+# Keep Docker build context lean and avoid leaking local artifacts/secrets.
+.git
+.github
+**/node_modules
+frontend/dist
+backend/target
+backend/data
+release
+.tools
+*.log
+.env
+**/application-local.properties
