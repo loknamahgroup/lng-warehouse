@@ -5,9 +5,18 @@ import { useAuth } from '../auth'
 
 const colors = {
   RESERVED: 'warning',
-  FULFILLED: 'success',
-  CANCELLED: 'default',
-  REJECTED: 'error'
+  APPROVED: 'success',
+  PARTIALLY_APPROVED: 'secondary',
+  REJECTED: 'error',
+  CANCELLED: 'default'
+}
+
+const statusLabels = {
+  RESERVED: 'Reserved',
+  APPROVED: 'Approved',
+  PARTIALLY_APPROVED: 'Partially Approved',
+  REJECTED: 'Rejected',
+  CANCELLED: 'Cancelled'
 }
 
 export default function Requests() {
@@ -17,8 +26,10 @@ export default function Requests() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [branchFilter, setBranchFilter] = useState('')
-  const [statusFilter, setStatusFilter] = useState('')
   const [search, setSearch] = useState('')
+  const [selectedRequest, setSelectedRequest] = useState(null)
+  const [detailLoading, setDetailLoading] = useState(false)
+  const [detailError, setDetailError] = useState('')
 
   const load = async () => {
     setLoading(true)
@@ -32,19 +43,20 @@ export default function Requests() {
     } catch (e) { setError(e.response?.data?.message || 'Failed to load') }
     finally { setLoading(false) }
   }
+
   useEffect(() => { load() }, [])
 
   const filtered = useMemo(() => {
     return rows.filter((r) => {
       if (branchFilter && r.branchId !== Number(branchFilter)) return false
-      if (statusFilter && r.status !== statusFilter) return false
       if (search) {
         const q = search.toLowerCase()
-        return (r.productName || '').toLowerCase().includes(q) || (r.sku || '').toLowerCase().includes(q) || (r.requestedBy || '').toLowerCase().includes(q)
+        return (r.branchName || '').toLowerCase().includes(q) ||
+               (r.requestedBy || '').toLowerCase().includes(q)
       }
       return true
     })
-  }, [rows, branchFilter, statusFilter, search])
+  }, [rows, branchFilter, search])
 
   const act = async (id, action) => {
     try {
@@ -55,7 +67,18 @@ export default function Requests() {
     }
   }
 
-  return (
+  const viewDetails = async (id) => {
+    setDetailLoading(true)
+    setDetailError('')
+    try {
+      const r = await api.get(`/api/requests/${id}`)
+      setSelectedRequest(r.data)
+    } catch (e) {
+      setDetailError(e.response?.data?.message || 'Failed to load details')
+    } finally {
+      setDetailLoading(false)
+    }
+  }
     <Stack spacing={2}>
       <Stack direction="row" justifyContent="space-between" alignItems="center">
         <div>
@@ -121,6 +144,88 @@ export default function Requests() {
                     </Stack>
                   )}
                 </TableCell>
+
+      ) : (
+        <>
+          <Paper>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  {isAdmin && <TableCell>Branch</TableCell>}
+                  <TableCell>Status</TableCell>
+                  <TableCell>Requested by</TableCell>
+                  <TableCell>Total Qty</TableCell>
+                  <TableCell>Items</TableCell>
+                  <TableCell />
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {filtered.length === 0 && (
+                  <TableRow><TableCell colSpan={isAdmin ? 6 : 5}><Typography color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>No requests found.</Typography></TableCell></TableRow>
+                )}
+                {filtered.map((row) => (
+                  <TableRow key={row.id}>
+                    {isAdmin && <TableCell>{row.branchName}</TableCell>}
+                    <TableCell><Chip size="small" label={statusLabels[row.status]} color={colors[row.status]} /></TableCell>
+                    <TableCell>{row.requestedBy}</TableCell>
+                    <TableCell align="right">{row.totalQuantity}</TableCell>
+                    <TableCell>{row.lines?.length || 0} items</TableCell>
+                    <TableCell>
+                      <Button size="small" onClick={() => viewDetails(row.id)}>View Items</Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </Paper>
+
+          {selectedRequest && (
+            <Paper>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Item</TableCell>
+                    <TableCell>Product</TableCell>
+                    <TableCell>SKU</TableCell>
+                    <TableCell align="right">Requested</TableCell>
+                    <TableCell align="right">Approved</TableCell>
+                    <TableCell>Status</TableCell>
+                    <TableCell>Notes</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {selectedRequest.lines.map((line) => (
+                    <TableRow key={line.id}>
+                      <TableCell>{line.requestedQuantity}</TableCell>
+                      <TableCell>{line.productName}</TableCell>
+                      <TableCell>{line.sku}</TableCell>
+                      <TableCell align="right">{line.requestedQuantity}</TableCell>
+                      <TableCell align="right">{line.approvedQuantity}</TableCell>
+                      <TableCell><Chip label={line.lineStatus} size="small" color={colors[line.lineStatus]} /></TableCell>
+                      <TableCell>{line.notes}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              <Stack direction="row" spacing={2} justifyContent="flex-end">
+                {selectedRequest.status === 'RESERVED' && isAdmin && (
+                  <>
+                    <Button size="small" variant="contained" onClick={() => act(selectedRequest.id, 'approve')}>Approve All</Button>
+                    <Button size="small" variant="outlined" color="error" onClick={() => act(selectedRequest.id, 'reject')}>Reject All</Button>
+                  </>
+                )}
+                {selectedRequest.status === 'APPROVED' && isAdmin && (
+                  <Button size="small" variant="contained" onClick={() => act(selectedRequest.id, 'fulfill')}>Fulfill</Button>
+                )}
+                <Button size="small" onClick={() => setSelectedRequest(null)}>Close</Button>
+              </Stack>
+            </Paper>
+          )}
+        </>
+      )}
+    </Stack>
+  )
+}
               </TableRow>
             ))}
           </TableBody>
@@ -130,3 +235,4 @@ export default function Requests() {
     </Stack>
   )
 }
+

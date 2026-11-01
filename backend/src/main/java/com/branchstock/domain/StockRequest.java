@@ -5,6 +5,8 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 
 @Document(collection = "stock_requests")
 @Getter
@@ -21,15 +23,16 @@ public class StockRequest {
 
     private String branchName;
 
-    private String productId;
-
     private String requestedBy;
 
-    private int quantity;
+    private String notes;
 
     private RequestStatus status;
 
-    private String notes;
+    @Builder.Default
+    private List<StockRequestLine> lines = new ArrayList<>();
+
+    private int totalQuantity;
 
     private Instant createdAt;
 

@@ -3,18 +3,17 @@ package com.branchstock.dto;
 import com.branchstock.domain.RequestStatus;
 
 import java.time.Instant;
+import java.util.List;
 
 public record StockRequestDto(
         String id,
         String branchId,
         String branchName,
-        String productId,
-        String sku,
-        String productName,
         String requestedBy,
-        int quantity,
-        RequestStatus status,
         String notes,
+        RequestStatus status,
+        List<StockRequestLineDto> lines,
+        int totalQuantity,
         Instant createdAt
 ) {
 }
