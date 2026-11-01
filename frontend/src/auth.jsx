@@ -17,6 +17,7 @@ export function AuthProvider({ children }) {
     () => ({
       user,
       isAdmin: user?.role === 'ADMIN',
+      isSubAdmin: user?.role === 'SUBADMIN',
       login: async (username, password) => {
         const { data } = await api.post('/api/auth/login', { username, password })
         localStorage.setItem('bs_token', data.token)

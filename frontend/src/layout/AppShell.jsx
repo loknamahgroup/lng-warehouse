@@ -31,26 +31,34 @@ const adminItems = [
   { to: '/products', label: 'Products', icon: <InventoryIcon /> },
   { to: '/warehouse', label: 'Warehouse', icon: <WarehouseIcon /> },
   { to: '/requests', label: 'Branch orders', icon: <AssignmentIcon /> },
+  { to: '/approve-requests', label: 'Approve requests', icon: <AssignmentIcon /> },
   { to: '/holdings', label: 'Branch holdings', icon: <BusinessIcon /> },
-    { to: '/users', label: 'Users', icon: <PeopleIcon /> },
+  { to: '/users', label: 'Users', icon: <PeopleIcon /> },
   { to: '/sales', label: 'Selling records', icon: <AssignmentIcon /> },
   { to: '/movements', label: 'Stock movements', icon: <HistoryIcon /> }
+]
+
+const subadminItems = [
+  { to: '/requests', label: 'My requests', icon: <AssignmentIcon /> },
+  { to: '/approve-requests', label: 'Approve requests', icon: <AssignmentIcon /> },
+  { to: '/holdings', label: 'Branch holdings', icon: <BusinessIcon /> }
 ]
 
 const branchItems = [
   { to: '/', label: 'Dashboard', icon: <DashboardIcon /> },
   { to: '/warehouse', label: 'Available stock', icon: <WarehouseIcon /> },
+  { to: '/create-request', label: 'New request', icon: <AssignmentIcon /> },
   { to: '/requests', label: 'My requests', icon: <AssignmentIcon /> },
   { to: '/sales', label: 'Selling records', icon: <AssignmentIcon /> },
   { to: '/holdings', label: 'My holdings', icon: <BusinessIcon /> }
 ]
 
 export default function AppShell() {
-  const { user, isAdmin, logout } = useAuth()
+  const { user, isAdmin, isSubAdmin, logout } = useAuth()
   const { mode, toggle } = useThemeMode()
   const navigate = useNavigate()
   const location = useLocation()
-  const items = isAdmin ? adminItems : branchItems
+  const items = isAdmin ? adminItems : isSubAdmin ? subadminItems : branchItems
   const [pwOpen, setPwOpen] = useState(false)
   const [pwCurrent, setPwCurrent] = useState('')
   const [pwNew, setPwNew] = useState('')

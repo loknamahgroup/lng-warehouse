@@ -31,4 +31,7 @@ public class UserAccount {
 
     @Builder.Default
     private boolean active = true;
+
+    @Builder.Default
+    private Map<String, Boolean> subadminConfig = new HashMap<>();
 }
