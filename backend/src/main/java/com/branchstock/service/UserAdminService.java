@@ -20,11 +20,13 @@ public class UserAdminService {
     private final UserAccountRepository userRepo;
     private final BranchRepository branchRepo;
     private final PasswordEncoder encoder;
+    private final CurrentUserService currentUser;
 
-    public UserAdminService(UserAccountRepository userRepo, BranchRepository branchRepo, PasswordEncoder encoder) {
+    public UserAdminService(UserAccountRepository userRepo, BranchRepository branchRepo, PasswordEncoder encoder, CurrentUserService currentUser) {
         this.userRepo = userRepo;
         this.branchRepo = branchRepo;
         this.encoder = encoder;
+        this.currentUser = currentUser;
     }
 
     public List<UserDto> list() {
@@ -67,6 +69,10 @@ public class UserAdminService {
         UserAccount user = userRepo.findById(id).orElseThrow(() -> new ApiException("User not found"));
         if ("admin".equals(user.getUsername())) {
             throw new ApiException("The admin user cannot be modified");
+        }
+        boolean editingSelf = currentUser.requireUser().getId().equals(id);
+        if (editingSelf && (Boolean.FALSE.equals(req.active()) || (req.role() != null && req.role() != Role.ADMIN))) {
+            throw new ApiException("You cannot deactivate or demote your own account");
         }
         if (req.username() != null && !req.username().isBlank()) {
             userRepo.findByUsername(req.username().trim()).ifPresent(existing -> {

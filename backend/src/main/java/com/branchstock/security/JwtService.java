@@ -30,10 +30,21 @@ public class JwtService {
         return Jwts.builder()
                 .subject(user.getUsername())
                 .claim("role", user.getRole().name())
+                .claim("pv", passwordStamp(user))
                 .issuedAt(now)
                 .expiration(new Date(now.getTime() + expirationMs))
                 .signWith(key)
                 .compact();
+    }
+
+    /** Fingerprint of the password hash: changing the password invalidates every token issued before it. */
+    public static String passwordStamp(UserAccount user) {
+        String hash = user.getPasswordHash();
+        return Integer.toHexString(hash == null ? 0 : hash.hashCode());
+    }
+
+    public String extractPasswordStamp(String token) {
+        return parse(token).get("pv", String.class);
     }
 
     public String extractUsername(String token) {

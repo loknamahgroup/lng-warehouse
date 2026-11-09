@@ -34,10 +34,9 @@ public class SecurityConfig {
                 .cors(c -> c.configurationSource(corsSource()))
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        // CORS preflight + public auth/dev endpoints
+                        // CORS preflight + public auth endpoints
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/api/auth/**").permitAll()
-                        .requestMatchers("/api/dev/seed").permitAll()
                         // All other API traffic requires a valid JWT
                         .requestMatchers("/api/**").authenticated()
                         // Everything that is NOT an API call is public so the SPA shell,

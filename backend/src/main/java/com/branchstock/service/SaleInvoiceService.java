@@ -1,5 +1,10 @@
 package com.branchstock.service;
 
+import org.springframework.data.mongodb.core.FindAndModifyOptions;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import com.branchstock.domain.Branch;
 import com.branchstock.domain.BranchHolding;
 import com.branchstock.domain.Product;
@@ -23,6 +28,7 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -33,22 +39,25 @@ public class SaleInvoiceService {
     private final ProductRepository productRepo;
     private final BranchHoldingRepository holdingRepo;
     private final CurrentUserService currentUser;
+    private final MongoTemplate mongo;
 
     public SaleInvoiceService(
             SaleInvoiceRepository invoiceRepo,
             ProductRepository productRepo,
             BranchHoldingRepository holdingRepo,
-            CurrentUserService currentUser
+            CurrentUserService currentUser,
+            MongoTemplate mongo
     ) {
         this.invoiceRepo = invoiceRepo;
         this.productRepo = productRepo;
         this.holdingRepo = holdingRepo;
         this.currentUser = currentUser;
+        this.mongo = mongo;
     }
 
     public List<SaleInvoiceDto> list() {
         UserAccount user = currentUser.requireUser();
-        List<SaleInvoice> rows = user.getRole() == Role.ADMIN
+        List<SaleInvoice> rows = user.getRole() != Role.BRANCH_USER
                 ? invoiceRepo.findAll(Sort.by(Sort.Direction.DESC, "soldAt"))
                 : invoiceRepo.findByBranchIdOrderBySoldAtDesc(requireBranch(user).getId());
         return rows.stream().map(this::toDto).toList();
@@ -125,7 +134,7 @@ public class SaleInvoiceService {
                     .build());
         }
 
-        SaleInvoice invoice = invoiceRepo.save(SaleInvoice.builder()
+        SaleInvoice toSave = SaleInvoice.builder()
                 .invoiceNo(generateInvoiceNo())
                 .branchId(branch.getId())
                 .branchName(branch.getName())
@@ -139,15 +148,34 @@ public class SaleInvoiceService {
                 .soldAt(Instant.now())
                 .items(items)
                 .total(total)
-                .build());
+                .build();
 
-        // 3. Reduce branch holdings
-        for (Map.Entry<String, Integer> e : requested.entrySet()) {
-            BranchHolding holding = holdings.get(e.getKey());
-            holding.setQuantity(holding.getQuantity() - e.getValue());
+        // 3. Deduct holdings atomically (conditional update per product) and undo on any failure,
+        //    so two simultaneous sales can never sell the same units twice.
+        Map<String, Integer> deducted = new LinkedHashMap<>();
+        SaleInvoice invoice;
+        try {
+            for (Map.Entry<String, Integer> e : requested.entrySet()) {
+                Query enough = new Query(Criteria.where("branchId").is(branch.getId())
+                        .and("productId").is(e.getKey()).and("quantity").gte(e.getValue()));
+                BranchHolding updated = mongo.findAndModify(enough,
+                        new Update().inc("quantity", -e.getValue()),
+                        FindAndModifyOptions.options().returnNew(true), BranchHolding.class);
+                if (updated == null) {
+                    Product product = products.get(e.getKey());
+                    throw new ApiException("Stock changed for " + product.getName()
+                            + " (" + product.getSku() + "). Please refresh and try again.");
+                }
+                deducted.put(e.getKey(), e.getValue());
+            }
+            invoice = invoiceRepo.save(toSave);
+        } catch (RuntimeException ex) {
+            for (Map.Entry<String, Integer> d : deducted.entrySet()) {
+                mongo.updateFirst(new Query(Criteria.where("branchId").is(branch.getId()).and("productId").is(d.getKey())),
+                        new Update().inc("quantity", d.getValue()), BranchHolding.class);
+            }
+            throw ex;
         }
-        holdingRepo.saveAll(holdings.values());
-
         return toDto(invoice);
     }
 

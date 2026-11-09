@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   Alert, Autocomplete, Box, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle,
   Divider, IconButton, Paper, Stack, Table, TableBody, TableCell, TableHead,
@@ -8,11 +8,17 @@ import AddIcon from '@mui/icons-material/Add'
 import DownloadIcon from '@mui/icons-material/Download'
 import api from '../api'
 import { useAuth } from '../auth'
+import DataTable from '../components/DataTable'
+import { useFeedback } from '../components/Feedback'
+import { FilterBar, Loading, PageHeader, useIsMobile } from '../components/common'
 
 const emptyItem = { productId: '', quantity: 1, price: 0 }
 
 export default function Sales() {
-  const { isAdmin } = useAuth()
+  const { user } = useAuth()
+  const isBranchUser = user?.role === 'BRANCH_USER'
+  const isMobile = useIsMobile()
+  const { notify } = useFeedback()
   const [sales, setSales] = useState([])
   const [products, setProducts] = useState([])
   const [holdings, setHoldings] = useState([])
@@ -54,11 +60,11 @@ export default function Sales() {
 
   // Branch users may only select products their branch actually holds
   const selectableProducts = useMemo(() => {
-    if (isAdmin) return products
+    if (!isBranchUser) return products
     return products
       .filter((p) => (holdingById.get(p.id) || 0) > 0)
       .map((p) => ({ ...p, available: holdingById.get(p.id) || 0 }))
-  }, [products, holdings, isAdmin, holdingById])
+  }, [products, holdings, isBranchUser, holdingById])
 
   const loadSummary = async () => {
     if (!dateFrom || !dateTo) { setSummary(null); return }
@@ -101,6 +107,7 @@ export default function Sales() {
         items: items.map((i) => ({ productId: i.productId, quantity: i.quantity, price: i.price }))
       })
       setOpen(false)
+      notify('Sale recorded - stock updated')
       setItems([{ ...emptyItem }])
       setCustomer({ name: '', phone: '', email: '', address: '' })
       load()
@@ -140,32 +147,45 @@ export default function Sales() {
 
   const totalValue = useMemo(() => sales.reduce((sum, s) => sum + (s.total || 0), 0), [sales])
 
-  if (loading) return <Box sx={{ display: 'flex', justifyContent: 'center', pt: 4 }}><CircularProgress /></Box>
+  const saleColumns = [
+    { key: 'invoiceNo', label: 'Invoice #', mobile: 'title' },
+    { key: 'soldAt', label: 'Date', mobile: 'subtitle', render: (r) => new Date(r.soldAt).toLocaleString() },
+    { key: 'total', label: 'Amount', align: 'right', mobile: 'badge', render: (r) => <strong>${Number(r.total || 0).toFixed(2)}</strong> },
+    { key: 'branchName', label: 'Branch' },
+    { key: 'customerName', label: 'Customer', render: (r) => r.customerName || '-' },
+    { key: 'units', label: 'Units', align: 'right', render: (r) => totalUnits(r) },
+    { key: 'soldBy', label: 'Sold by', render: (r) => r.soldBy || r.username }
+  ]
+  const invoiceLineColumns = [
+    { key: 'productName', label: 'Product', mobile: 'title' },
+    { key: 'sku', label: 'SKU', mobile: 'subtitle' },
+    { key: 'amount', label: 'Amount', align: 'right', mobile: 'badge', render: (it) => `$${Number(it.amount).toFixed(2)}` },
+    { key: 'quantity', label: 'Qty', align: 'right' },
+    { key: 'price', label: 'Price', align: 'right', render: (it) => `$${Number(it.price).toFixed(2)}` }
+  ]
+
+  if (loading) return <Loading />
   return (
     <Stack spacing={2}>
-      <Stack direction="row" justifyContent="space-between" alignItems="center">
-        <div>
-          <Typography variant="h5">Selling records</Typography>
-          <Typography color="text.secondary">Branch users record sales - inventory checked and reduced automatically</Typography>
-        </div>
-        <Stack direction="row" spacing={1.5}>
-          <TextField size="small" type="date" label="From" InputLabelProps={{ shrink: true }} value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} sx={{ minWidth: 150 }} />
-          <TextField size="small" type="date" label="To" InputLabelProps={{ shrink: true }} value={dateTo} onChange={(e) => setDateTo(e.target.value)} sx={{ minWidth: 150 }} />
-          <Tooltip title="Download Excel">
-            <span><IconButton color="primary" onClick={handleExport} disabled={!dateFrom || !dateTo}><DownloadIcon /></IconButton></span>
-          </Tooltip>
-          {!isAdmin && (
-            <Button variant="contained" startIcon={<AddIcon />} onClick={() => { setOpen(true); setError(''); setItems([{ ...emptyItem }]) }}>Record sale</Button>
-          )}
-        </Stack>
-      </Stack>
+      <PageHeader
+        title="Selling records"
+        subtitle="Branch users record sales - inventory is checked and reduced automatically"
+        actions={isBranchUser && (
+          <Button variant="contained" startIcon={<AddIcon />} onClick={() => { setOpen(true); setError(''); setItems([{ ...emptyItem }]) }}>Record sale</Button>
+        )}
+      />
+      <FilterBar>
+        <TextField size="small" type="date" label="From" InputLabelProps={{ shrink: true }} value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+        <TextField size="small" type="date" label="To" InputLabelProps={{ shrink: true }} value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+        <Button variant="outlined" startIcon={<DownloadIcon />} onClick={handleExport} disabled={!dateFrom || !dateTo}>Export Excel</Button>
+      </FilterBar>
 
       {error && <Alert severity="error" onClose={() => setError('')}>{error}</Alert>}
 
       {summary && (
         <Paper sx={{ p: 2 }}>
           <Typography variant="subtitle1" fontWeight={600}>Report summary ({dateFrom} to {dateTo})</Typography>
-          <Stack direction="row" spacing={3} sx={{ mt: 1 }}>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 0.5, sm: 3 }} sx={{ mt: 1 }}>
             <Typography>Invoices: <strong>{summary.invoiceCount || 0}</strong></Typography>
             <Typography>Items sold: <strong>{summary.itemCount || 0}</strong></Typography>
             <Typography>Total value: <strong>${Number(summary.totalValue || 0).toFixed(2)}</strong></Typography>
@@ -180,73 +200,36 @@ export default function Sales() {
         </Paper>
       )}
 
-      <Paper>
-        <Table size="small">
-          <TableHead>
-            <TableRow>
-              <TableCell>Date</TableCell>
-              <TableCell>Invoice #</TableCell>
-              <TableCell>Branch</TableCell>
-              <TableCell>Customer</TableCell>
-              <TableCell align="right">Units</TableCell>
-              <TableCell align="right">Amount</TableCell>
-              <TableCell>Sold by</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {sales.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={7}>
-                  <Typography color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>No sales found.</Typography>
-                </TableCell>
-              </TableRow>
-            ) : (
-              sales.map((row) => (
-                <TableRow key={row.id} hover onClick={() => setViewRow(row)} sx={{ cursor: 'pointer' }}>
-                  <TableCell>{new Date(row.soldAt).toLocaleString()}</TableCell>
-                  <TableCell>{row.invoiceNo}</TableCell>
-                  <TableCell>{row.branchName}</TableCell>
-                  <TableCell>{row.customerName || '-'}</TableCell>
-                  <TableCell align="right">{totalUnits(row)}</TableCell>
-                  <TableCell align="right">${Number(row.total || 0).toFixed(2)}</TableCell>
-                  <TableCell>{row.soldBy || row.username}</TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-        {sales.length > 0 && (
-          <Box sx={{ p: 1.5, borderTop: '1px solid', borderColor: 'divider' }}>
-            <Typography fontWeight={600}>Grand total: ${totalValue.toFixed(2)}</Typography>
-          </Box>
-        )}
-      </Paper>
+      <DataTable columns={saleColumns} rows={sales} emptyTitle="No sales found" onRowClick={setViewRow} dense pageSize={25} />
+      {sales.length > 0 && (
+        <Typography fontWeight={600} sx={{ textAlign: 'right' }}>Grand total: ${totalValue.toFixed(2)}</Typography>
+      )}
       {/* Record sale dialog */}
-      <Dialog open={open} onClose={() => setOpen(false)} fullWidth maxWidth="md">
+      <Dialog open={open} onClose={() => setOpen(false)} fullWidth maxWidth="md" fullScreen={isMobile}>
         <DialogTitle>Record sale</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
             <Stack spacing={2}>
               <Typography variant="subtitle2" fontWeight={600}>Customer details</Typography>
-              <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
                 <TextField label="Customer name" size="small" value={customer.name}
-                  onChange={(e) => setCustomer({ ...customer, name: e.target.value })} sx={{ minWidth: 220, flex: 1 }} />
+                  onChange={(e) => setCustomer({ ...customer, name: e.target.value })} sx={{ minWidth: { sm: 220 }, flex: 1 }} />
                 <TextField label="Phone / Contact" size="small" value={customer.phone}
-                  onChange={(e) => setCustomer({ ...customer, phone: e.target.value })} sx={{ minWidth: 180, flex: 1 }} />
+                  onChange={(e) => setCustomer({ ...customer, phone: e.target.value })} sx={{ minWidth: { sm: 180 }, flex: 1 }} />
               </Stack>
-              <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
                 <TextField label="Email" size="small" type="email" value={customer.email}
-                  onChange={(e) => setCustomer({ ...customer, email: e.target.value })} sx={{ minWidth: 220, flex: 1 }} />
+                  onChange={(e) => setCustomer({ ...customer, email: e.target.value })} sx={{ minWidth: { sm: 220 }, flex: 1 }} />
                 <TextField label="Address" size="small" value={customer.address}
-                  onChange={(e) => setCustomer({ ...customer, address: e.target.value })} sx={{ minWidth: 220, flex: 1 }} />
+                  onChange={(e) => setCustomer({ ...customer, address: e.target.value })} sx={{ minWidth: { sm: 220 }, flex: 1 }} />
               </Stack>
             </Stack>
             <Divider />
             {items.map((item, idx) => (
-              <Stack key={idx} direction="row" spacing={1} alignItems="flex-start">
+              <Stack key={idx} direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ md: 'flex-start' }} sx={{ p: { xs: 1.5, md: 0 }, border: { xs: 1, md: 0 }, borderColor: 'divider', borderRadius: 2 }}>
                 <Autocomplete
                   size="small"
-                  sx={{ minWidth: 260, flex: 1 }}
+                  sx={{ minWidth: { md: 260 }, flex: 1 }}
                   options={selectableProducts}
                   getOptionLabel={(p) => `${p.sku} - ${p.name}`}
                   isOptionEqualToValue={(a, b) => a.id === b.id}
@@ -271,9 +254,9 @@ export default function Sales() {
                   noOptionsText="No matching product"
                 />
                 <TextField label="Qty" type="number" size="small" value={item.quantity}
-                  onChange={(e) => handleItemChange(idx, 'quantity', Number(e.target.value))} sx={{ width: 90 }} />
+                  onChange={(e) => handleItemChange(idx, 'quantity', Number(e.target.value))} sx={{ width: { md: 90 } }} inputProps={{ min: 1, inputMode: 'numeric' }} />
                 <TextField label="Price" type="number" size="small" value={item.price}
-                  onChange={(e) => handleItemChange(idx, 'price', Number(e.target.value))} sx={{ width: 120 }}
+                  onChange={(e) => handleItemChange(idx, 'price', Number(e.target.value))} sx={{ width: { md: 120 } }}
                   InputProps={{ startAdornment: <span>$</span> }} />
                 {item.productId && (
                   <Typography variant="body2" color="text.secondary">= ${(Number(item.quantity) * Number(item.price)).toFixed(2)}</Typography>
@@ -293,7 +276,7 @@ export default function Sales() {
       </Dialog>
 
       {/* View sale details dialog */}
-      <Dialog open={!!viewRow} onClose={() => setViewRow(null)} fullWidth maxWidth="md">
+      <Dialog open={!!viewRow} onClose={() => setViewRow(null)} fullWidth maxWidth="md" fullScreen={isMobile}>
         <DialogTitle>Invoice details</DialogTitle>
         <DialogContent dividers>
           {viewRow && (
@@ -317,28 +300,7 @@ export default function Sales() {
               <Divider />
               <Box>
                 <Typography fontWeight={600}>Items:</Typography>
-                <Table size="small" sx={{ mt: 1 }}>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>SKU</TableCell>
-                      <TableCell>Product</TableCell>
-                      <TableCell align="right">Qty</TableCell>
-                      <TableCell align="right">Price</TableCell>
-                      <TableCell align="right">Amount</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {(viewRow.items || []).map((it, i) => (
-                      <TableRow key={i}>
-                        <TableCell>{it.sku}</TableCell>
-                        <TableCell>{it.productName}</TableCell>
-                        <TableCell align="right">{it.quantity}</TableCell>
-                        <TableCell align="right">${Number(it.price).toFixed(2)}</TableCell>
-                        <TableCell align="right">${Number(it.amount).toFixed(2)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                <Box sx={{ mt: 1 }}><DataTable columns={invoiceLineColumns} rows={viewRow.items || []} dense pageSize={25} /></Box>
               </Box>
               <Typography fontWeight={600}><strong>Grand total:</strong> ${Number(viewRow.total || 0).toFixed(2)}</Typography>
             </Stack>

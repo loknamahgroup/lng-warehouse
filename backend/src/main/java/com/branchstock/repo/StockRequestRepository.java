@@ -10,5 +10,6 @@ public interface StockRequestRepository extends MongoRepository<StockRequest, St
     List<StockRequest> findByBranchIdOrderByCreatedAtDesc(String branchId);
     List<StockRequest> findAllByOrderByCreatedAtDesc();
     long countByStatus(RequestStatus status);
+    long countByBranchIdAndStatus(String branchId, RequestStatus status);
     List<StockRequest> findByStatusOrderByCreatedAtDesc(RequestStatus status);
 }

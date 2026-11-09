@@ -6,6 +6,7 @@ import com.branchstock.domain.Product;
 import com.branchstock.domain.RequestStatus;
 import com.branchstock.domain.Role;
 import com.branchstock.domain.StockRequest;
+import com.branchstock.domain.StockRequestLine;
 import com.branchstock.domain.UserAccount;
 import com.branchstock.domain.WarehouseStock;
 import com.branchstock.repo.BranchHoldingRepository;
@@ -14,6 +15,7 @@ import com.branchstock.repo.ProductRepository;
 import com.branchstock.repo.StockRequestRepository;
 import com.branchstock.repo.UserAccountRepository;
 import com.branchstock.repo.WarehouseStockRepository;
+import org.bson.types.ObjectId;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -33,11 +35,20 @@ public class DataSeeder {
             WarehouseStockRepository stockRepo,
             BranchHoldingRepository holdingRepo,
             StockRequestRepository requestRepo,
-            PasswordEncoder encoder
+            PasswordEncoder encoder,
+            @org.springframework.beans.factory.annotation.Value("${app.seed.password:}") String seedPassword
     ) {
         return args -> {
             if (userRepo.count() > 0) {
                 return;
+            }
+            boolean customPassword = seedPassword != null && seedPassword.length() >= 8;
+            String adminPassword = customPassword ? seedPassword : "Admin@123";
+            String branchPassword = customPassword ? seedPassword : "Branch@123";
+            if (!customPassword) {
+                org.slf4j.LoggerFactory.getLogger(DataSeeder.class).warn(
+                        "SEED_PASSWORD not set (or shorter than 8 chars): seeding demo users with the DEFAULT passwords. "
+                                + "Set SEED_PASSWORD or change them immediately in any shared/production deployment.");
             }
 
             Branch downtown = branchRepo.save(Branch.builder()
@@ -49,14 +60,14 @@ public class DataSeeder {
 
             userRepo.save(UserAccount.builder()
                     .username("admin")
-                    .passwordHash(encoder.encode("Admin@123"))
+                    .passwordHash(encoder.encode(adminPassword))
                     .displayName("Warehouse Admin")
                     .role(Role.ADMIN)
                     .active(true)
                     .build());
             userRepo.save(UserAccount.builder()
                     .username("downtown")
-                    .passwordHash(encoder.encode("Branch@123"))
+                    .passwordHash(encoder.encode(branchPassword))
                     .displayName("Downtown Manager")
                     .role(Role.BRANCH_USER)
                     .branchId(downtown.getId())
@@ -65,7 +76,7 @@ public class DataSeeder {
                     .build());
             UserAccount northUser = userRepo.save(UserAccount.builder()
                     .username("northside")
-                    .passwordHash(encoder.encode("Branch@123"))
+                    .passwordHash(encoder.encode(branchPassword))
                     .displayName("Northside Manager")
                     .role(Role.BRANCH_USER)
                     .branchId(north.getId())
@@ -101,15 +112,30 @@ public class DataSeeder {
             holdingRepo.save(BranchHolding.builder().branchId(downtown.getId()).branchName(downtown.getName()).productId(cups.getId()).quantity(8).build());
             holdingRepo.save(BranchHolding.builder().branchId(north.getId()).branchName(north.getName()).productId(beans.getId()).quantity(10).build());
 
+            Instant now = Instant.now();
+            String requestId = new ObjectId().toHexString();
             requestRepo.save(StockRequest.builder()
+                    .id(requestId)
                     .branchId(north.getId())
                     .branchName(north.getName())
-                    .productId(beans.getId())
                     .requestedBy(northUser.getUsername())
-                    .quantity(12)
-                    .status(RequestStatus.RESERVED)
                     .notes("Weekend restock")
-                    .createdAt(Instant.now())
+                    .status(RequestStatus.RESERVED)
+                    .lines(List.of(StockRequestLine.builder()
+                            .id(new ObjectId().toHexString())
+                            .requestId(requestId)
+                            .productId(beans.getId())
+                            .productName(beans.getName())
+                            .sku(beans.getSku())
+                            .unit(beans.getUnit())
+                            .quantity(12)
+                            .requestedQuantity(12)
+                            .requestedBy(northUser.getUsername())
+                            .createdAt(now)
+                            .build()))
+                    .totalQuantity(12)
+                    .createdAt(now)
+                    .updatedAt(now)
                     .build());
         };
     }

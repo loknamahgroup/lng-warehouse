@@ -1,10 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Alert, Box, CircularProgress, FormControl, InputLabel, MenuItem, Paper, Select, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material'
+import { Alert, FormControl, InputLabel, MenuItem, Select, TextField } from '@mui/material'
+import { Stack } from '@mui/material'
 import api from '../api'
 import { useAuth } from '../auth'
+import DataTable from '../components/DataTable'
+import { FilterBar, Loading, PageHeader } from '../components/common'
 
 export default function Holdings() {
-  const { isAdmin } = useAuth()
+  const { user } = useAuth()
+  const seesAll = user?.role !== 'BRANCH_USER' // admin / sub-admin see every branch
   const [rows, setRows] = useState([])
   const [branches, setBranches] = useState([])
   const [loading, setLoading] = useState(true)
@@ -13,76 +17,48 @@ export default function Holdings() {
   const [search, setSearch] = useState('')
 
   useEffect(() => {
-    setLoading(true)
-    Promise.all([
-      api.get('/api/holdings'),
-      isAdmin ? api.get('/api/branches') : Promise.resolve({ data: [] })
-    ]).then(([h, b]) => {
-      setRows(h.data)
-      setBranches(b.data)
-    }).catch((e) => setError(e.response?.data?.message || 'Failed to load')).finally(() => setLoading(false))
+    Promise.all([api.get('/api/holdings'), seesAll ? api.get('/api/branches') : Promise.resolve({ data: [] })])
+      .then(([h, b]) => { setRows(h.data); setBranches(b.data) })
+      .catch((e) => setError(e.response?.data?.message || 'Failed to load'))
+      .finally(() => setLoading(false))
   }, [])
 
   const filtered = useMemo(() => {
+    const q = search.toLowerCase()
     return rows.filter((r) => {
-      if (branchFilter && r.branchId !== Number(branchFilter)) return false
-      if (search) {
-        const q = search.toLowerCase()
-        return (r.sku || '').toLowerCase().includes(q) || (r.productName || '').toLowerCase().includes(q)
-      }
-      return true
+      if (branchFilter && r.branchId !== branchFilter) return false
+      return !q || (r.sku || '').toLowerCase().includes(q) || (r.productName || '').toLowerCase().includes(q)
     })
   }, [rows, branchFilter, search])
 
+  const columns = [
+    ...(seesAll ? [{ key: 'branchName', label: 'Branch', mobile: 'subtitle' }] : []),
+    { key: 'productName', label: 'Product', mobile: 'title' },
+    { key: 'sku', label: 'SKU' },
+    { key: 'quantity', label: 'Quantity', align: 'right', mobile: 'badge', render: (r) => <strong>{r.quantity} {r.unit}</strong> }
+  ]
+
   return (
     <Stack spacing={2}>
-      <Stack direction="row" justifyContent="space-between" alignItems="center">
-        <div>
-          <Typography variant="h5">{isAdmin ? 'Holdings by branch' : 'My branch holdings'}</Typography>
-          <Typography color="text.secondary">Stock already received at shop locations after warehouse fulfillment.</Typography>
-        </div>
-        <Stack direction="row" spacing={1.5}>
-          <TextField size="small" placeholder="Search product…" value={search} onChange={(e) => setSearch(e.target.value)} sx={{ width: 200 }} />
-          {isAdmin && (
-            <FormControl size="small" sx={{ minWidth: 180 }}>
-              <InputLabel>Branch</InputLabel>
-              <Select value={branchFilter} label="Branch" onChange={(e) => setBranchFilter(e.target.value)}>
-                <MenuItem value="">All branches</MenuItem>
-                {branches.map((b) => <MenuItem key={b.id} value={b.id}>{b.name}</MenuItem>)}
-              </Select>
-            </FormControl>
-          )}
-        </Stack>
-      </Stack>
+      <PageHeader
+        title={seesAll ? 'Holdings by branch' : 'My branch holdings'}
+        subtitle="Stock already received at shop locations after warehouse approval."
+      />
+      <FilterBar>
+        <TextField size="small" placeholder="Search product or SKU…" value={search} onChange={(e) => setSearch(e.target.value)} />
+        {seesAll && (
+          <FormControl size="small">
+            <InputLabel>Branch</InputLabel>
+            <Select value={branchFilter} label="Branch" onChange={(e) => setBranchFilter(e.target.value)}>
+              <MenuItem value="">All branches</MenuItem>
+              {branches.map((b) => <MenuItem key={b.id} value={b.id}>{b.name}</MenuItem>)}
+            </Select>
+          </FormControl>
+        )}
+      </FilterBar>
       {error && <Alert severity="error">{error}</Alert>}
-      {loading ? <Box sx={{ display: 'flex', justifyContent: 'center', pt: 4 }}><CircularProgress /></Box> : (
-      <Paper>
-        <Table>
-          <TableHead>
-            <TableRow>
-              {isAdmin && <TableCell>Branch</TableCell>}
-              <TableCell>SKU</TableCell>
-              <TableCell>Product</TableCell>
-              <TableCell align="right">Quantity</TableCell>
-              <TableCell>Unit</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {filtered.length === 0 && (
-              <TableRow><TableCell colSpan={isAdmin ? 5 : 4}><Typography color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>No holdings found.</Typography></TableCell></TableRow>
-            )}
-            {filtered.map((row) => (
-              <TableRow key={`${row.branchId}-${row.productId}`}>
-                {isAdmin && <TableCell>{row.branchName}</TableCell>}
-                <TableCell>{row.sku}</TableCell>
-                <TableCell>{row.productName}</TableCell>
-                <TableCell align="right">{row.quantity}</TableCell>
-                <TableCell>{row.unit}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </Paper>
+      {loading ? <Loading /> : (
+        <DataTable columns={columns} rows={filtered} rowKey={(r) => `${r.branchId}-${r.productId}`} emptyTitle="No holdings found" />
       )}
     </Stack>
   )

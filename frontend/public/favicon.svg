@@ -1,5 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" role="img" aria-label="BranchStock">
-  <rect width="32" height="32" rx="6" fill="#0369a8"/>
-  <rect x="6" y="9" width="20" height="5" rx="2" fill="#06b6d4"/>
-  <rect x="6" y="18" width="20" height="5" rx="2" fill="#06b6d4"/>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="112" fill="#1565C0"/><path d="M96 236 256 124l160 112v152H96z" fill="#fff"/><rect x="184" y="296" width="144" height="92" rx="8" fill="#1565C0"/><path d="M184 328h144M184 358h144" stroke="#fff" stroke-width="10"/></svg>

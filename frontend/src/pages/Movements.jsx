@@ -1,16 +1,10 @@
-import { useEffect, useState } from 'react'
-import {
-  Alert, Box, Chip, CircularProgress, Paper, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography
-} from '@mui/material'
+import { useEffect, useMemo, useState } from 'react'
+import { Alert, Chip, Stack, TextField } from '@mui/material'
 import api from '../api'
+import DataTable from '../components/DataTable'
+import { FilterBar, Loading, PageHeader } from '../components/common'
 
-const typeColors = {
-  INBOUND: 'success',
-  ADJUSTMENT: 'info',
-  RESERVE: 'warning',
-  RELEASE: 'default',
-  SHIP: 'primary'
-}
+const typeColors = { INBOUND: 'success', ADJUSTMENT: 'info', RESERVE: 'warning', RELEASE: 'default', SHIP: 'primary' }
 
 export default function Movements() {
   const [rows, setRows] = useState([])
@@ -18,74 +12,35 @@ export default function Movements() {
   const [error, setError] = useState('')
   const [filter, setFilter] = useState('')
 
-  const load = async () => {
-    setLoading(true)
-    try { setRows((await api.get('/api/warehouse/movements')).data) }
-    catch (e) { setError(e.response?.data?.message || 'Failed to load') }
-    finally { setLoading(false) }
-  }
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    api.get('/api/warehouse/movements').then((r) => setRows(r.data))
+      .catch((e) => setError(e.response?.data?.message || 'Failed to load'))
+      .finally(() => setLoading(false))
+  }, [])
 
-  const filtered = rows.filter((r) => {
-    if (!filter) return true
+  const filtered = useMemo(() => {
     const q = filter.toLowerCase()
-    return (
-      (r.sku || '').toLowerCase().includes(q) ||
-      (r.productName || '').toLowerCase().includes(q) ||
-      (r.branchName || '').toLowerCase().includes(q) ||
-      (r.type || '').toLowerCase().includes(q)
-    )
-  })
+    return rows.filter((r) => !q || [r.sku, r.productName, r.branchName, r.type].some((v) => (v || '').toLowerCase().includes(q)))
+  }, [rows, filter])
+
+  const columns = [
+    { key: 'productName', label: 'Product', mobile: 'title' },
+    { key: 'sku', label: 'SKU', mobile: 'subtitle' },
+    { key: 'type', label: 'Type', mobile: 'badge', render: (r) => <Chip size="small" color={typeColors[r.type] || 'default'} label={r.type} /> },
+    { key: 'quantity', label: 'Qty', align: 'right' },
+    { key: 'branchName', label: 'Branch', render: (r) => r.branchName || '—' },
+    { key: 'createdAt', label: 'When', render: (r) => new Date(r.createdAt).toLocaleString() },
+    { key: 'note', label: 'Note', render: (r) => r.note || '—' }
+  ]
 
   return (
     <Stack spacing={2}>
-      <Stack direction="row" justifyContent="space-between" alignItems="center">
-        <div>
-          <Typography variant="h5">Stock movements</Typography>
-          <Typography color="text.secondary">Audit trail of all warehouse stock changes</Typography>
-        </div>
-        <TextField
-          size="small"
-          placeholder="Search by SKU, product, branch…"
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          sx={{ width: 280 }}
-        />
-      </Stack>
+      <PageHeader title="Stock movements" subtitle="Audit trail of all warehouse stock changes" />
+      <FilterBar>
+        <TextField size="small" placeholder="Search SKU, product, branch, type…" value={filter} onChange={(e) => setFilter(e.target.value)} />
+      </FilterBar>
       {error && <Alert severity="error" onClose={() => setError('')}>{error}</Alert>}
-      {loading ? <Box sx={{ display: 'flex', justifyContent: 'center', pt: 4 }}><CircularProgress /></Box> : (
-      <Paper>
-        <Table size="small">
-          <TableHead>
-            <TableRow>
-              <TableCell>When</TableCell>
-              <TableCell>Type</TableCell>
-              <TableCell>SKU</TableCell>
-              <TableCell>Product</TableCell>
-              <TableCell>Branch</TableCell>
-              <TableCell align="right">Qty</TableCell>
-              <TableCell>Note</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {filtered.length === 0 && (
-              <TableRow><TableCell colSpan={7}><Typography color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>No movements found.</Typography></TableCell></TableRow>
-            )}
-            {filtered.map((row) => (
-              <TableRow key={row.id}>
-                <TableCell>{new Date(row.createdAt).toLocaleString()}</TableCell>
-                <TableCell><Chip size="small" color={typeColors[row.type] || 'default'} label={row.type} /></TableCell>
-                <TableCell>{row.sku}</TableCell>
-                <TableCell>{row.productName}</TableCell>
-                <TableCell>{row.branchName || '—'}</TableCell>
-                <TableCell align="right">{row.quantity}</TableCell>
-                <TableCell>{row.note || '—'}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </Paper>
-      )}
+      {loading ? <Loading /> : <DataTable columns={columns} rows={filtered} emptyTitle="No movements found" dense pageSize={25} />}
     </Stack>
   )
 }
