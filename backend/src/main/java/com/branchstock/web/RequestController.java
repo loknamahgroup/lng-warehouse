@@ -1,5 +1,6 @@
 package com.branchstock.web;
 
+import com.branchstock.domain.RequestStatus;
 import com.branchstock.dto.ApproveRequestDto;
 import com.branchstock.dto.AdjustLineRequestDto;
 import com.branchstock.dto.CreateRequestDto;
@@ -8,13 +9,11 @@ import com.branchstock.dto.StockRequestDto;
 import com.branchstock.service.ApprovalCopyService;
 import com.branchstock.service.RequestService;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
-import java.io.ByteArrayInputStream;
 import java.util.List;
 
 @RestController
@@ -74,13 +73,12 @@ public class RequestController {
     }
 
     @GetMapping("/requests/{id}/approval-copy")
-    public ResponseEntity<ByteArrayInputStream> getApprovalCopy(@PathVariable String id) {
-        StockRequestDto requestDto = requestService.get(id);
-        ByteArrayInputStream bis = approvalCopyService.generateApprovalCopy(requestDto);
+    public ResponseEntity<byte[]> getApprovalCopy(@PathVariable String id) {
+        byte[] xlsx = approvalCopyService.generateApprovalCopy(requestService.get(id));
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"approval-copy-" + id + ".xlsx\"")
-                .body(bis);
+                .body(xlsx);
     }
 
     @GetMapping("/holdings")

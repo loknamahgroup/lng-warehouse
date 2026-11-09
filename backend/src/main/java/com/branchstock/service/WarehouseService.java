@@ -1,5 +1,12 @@
 package com.branchstock.service;
 
+import org.bson.Document;
+import org.springframework.data.mongodb.core.FindAndModifyOptions;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.BasicQuery;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import com.branchstock.domain.Branch;
 import com.branchstock.domain.MovementType;
 import com.branchstock.domain.Product;
@@ -28,19 +35,23 @@ public class WarehouseService {
     private final StockMovementRepository movementRepo;
     private final BranchRepository branchRepo;
     private final ProductService productService;
+    private final MongoTemplate mongo;
+    private static final FindAndModifyOptions RETURN_NEW = FindAndModifyOptions.options().returnNew(true);
 
     public WarehouseService(
             WarehouseStockRepository stockRepo,
             ProductRepository productRepo,
             StockMovementRepository movementRepo,
             BranchRepository branchRepo,
-            ProductService productService
+            ProductService productService,
+            MongoTemplate mongo
     ) {
         this.stockRepo = stockRepo;
         this.productRepo = productRepo;
         this.movementRepo = movementRepo;
         this.branchRepo = branchRepo;
         this.productService = productService;
+        this.mongo = mongo;
     }
 
     public List<WarehouseStockDto> list() {
@@ -92,47 +103,55 @@ public class WarehouseService {
         return productService.toStockDto(stockRepo.save(stock));
     }
 
+    /**
+     * Stock changes below are single conditional MongoDB updates, so two concurrent
+     * requests can never both pass the availability check (no lost updates / overselling).
+     */
     public void reserve(Product product, int qty) {
-        WarehouseStock stock = requireStock(product.getId());
-        if (stock.getAvailable() < qty) {
-            throw new ApiException("Not enough available warehouse stock. Available: " + stock.getAvailable());
+        requireStock(product.getId());
+        Document filter = new Document("productId", product.getId())
+                .append("$expr", new Document("$gte", List.of(
+                        new Document("$subtract", List.of("$onHand", "$reserved")), qty)));
+        WarehouseStock updated = mongo.findAndModify(
+                new BasicQuery(filter), new Update().inc("reserved", qty), RETURN_NEW, WarehouseStock.class);
+        if (updated == null) {
+            WarehouseStock current = requireStock(product.getId());
+            throw new ApiException("Not enough available warehouse stock. Available: " + current.getAvailable());
         }
-        stock.setReserved(stock.getReserved() + qty);
-        movementRepo.save(StockMovement.builder()
-                .productId(product.getId())
-                .type(MovementType.RESERVE)
-                .quantity(qty)
-                .createdAt(Instant.now())
-                .build());
-        stockRepo.save(stock);
+        recordMovement(product, MovementType.RESERVE, qty);
     }
 
     public void release(Product product, int qty) {
-        WarehouseStock stock = requireStock(product.getId());
-        stock.setReserved(Math.max(0, stock.getReserved() - qty));
-        movementRepo.save(StockMovement.builder()
-                .productId(product.getId())
-                .type(MovementType.RELEASE)
-                .quantity(qty)
-                .createdAt(Instant.now())
-                .build());
-        stockRepo.save(stock);
+        requireStock(product.getId());
+        Query enough = new Query(Criteria.where("productId").is(product.getId()).and("reserved").gte(qty));
+        WarehouseStock updated = mongo.findAndModify(enough, new Update().inc("reserved", -qty), RETURN_NEW, WarehouseStock.class);
+        if (updated == null) {
+            // Reserved count is already lower than expected (legacy data): clamp to zero instead of going negative.
+            mongo.updateFirst(new Query(Criteria.where("productId").is(product.getId())),
+                    new Update().set("reserved", 0), WarehouseStock.class);
+        }
+        recordMovement(product, MovementType.RELEASE, qty);
     }
 
     public void ship(Product product, int qty) {
-        WarehouseStock stock = requireStock(product.getId());
-        if (stock.getReserved() < qty || stock.getOnHand() < qty) {
+        requireStock(product.getId());
+        Query enough = new Query(Criteria.where("productId").is(product.getId())
+                .and("reserved").gte(qty).and("onHand").gte(qty));
+        WarehouseStock updated = mongo.findAndModify(
+                enough, new Update().inc("reserved", -qty).inc("onHand", -qty), RETURN_NEW, WarehouseStock.class);
+        if (updated == null) {
             throw new ApiException("Cannot ship more than reserved/on-hand stock");
         }
-        stock.setReserved(stock.getReserved() - qty);
-        stock.setOnHand(stock.getOnHand() - qty);
+        recordMovement(product, MovementType.SHIP, qty);
+    }
+
+    private void recordMovement(Product product, MovementType type, int qty) {
         movementRepo.save(StockMovement.builder()
                 .productId(product.getId())
-                .type(MovementType.SHIP)
+                .type(type)
                 .quantity(qty)
                 .createdAt(Instant.now())
                 .build());
-        stockRepo.save(stock);
     }
 
     private WarehouseStock requireStock(String productId) {

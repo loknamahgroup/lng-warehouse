@@ -1,94 +1,121 @@
 package com.branchstock.service;
 
-import com.branchstock.domain.StockRequest;
 import com.branchstock.dto.StockRequestDto;
-import org.apache.poi.ss.usermodel.*;
-import org.apache.poi.xssf.usermodel.XSSFFont;
-import org.apache.poi.xssf.usermodel.XSSFSheet;
+import com.branchstock.dto.StockRequestLineDto;
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellStyle;
+import org.apache.poi.ss.usermodel.FillPatternType;
+import org.apache.poi.ss.usermodel.Font;
+import org.apache.poi.ss.usermodel.IndexedColors;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.stereotype.Service;
 
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.InputStream;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.time.Instant;
-import java.time.format.DateTimeFormatter;
 import java.util.List;
 
+/** Builds the downloadable .xlsx "approval copy" for a stock request. */
 @Service
 public class ApprovalCopyService {
 
-    public ByteArrayInputStream generateApprovalCopy(StockRequestDto requestDto) {
-        try (Workbook workbook = new XSSFWorkbook()) {
-            Sheet sheet = workbook.createSheet("Approval Copy");
-            Font headerFont = workbook.createFont();
-            headerFont.setBold(true);
-            headerFont.setFontHeight(si -> {});
-            XSSFFont boldFont = (XSSFFont) workbook.createFont();
-            boldFont.setBold(true);
+    private static final String[] HEADERS =
+            {"#", "Product", "SKU", "Unit", "Requested Qty", "Approved Qty", "Status", "Notes"};
 
-            Row headerRow = sheet.createRow(0);
-            String[] headers = {"#", "Product", "SKU", "Unit", "Requested Qty", "Approved Qty", "Status", "Notes"};
-            for (int i = 0; i < headers.length; i++) {
-                Cell cell = headerRow.createCell(i);
-                cell.setCellValue(headers[i]);
-                CellStyle headerStyle = workbook.createCellStyle();
-                headerStyle.setFont(boldFont);
-                headerStyle.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
-                headerStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+    public byte[] generateApprovalCopy(StockRequestDto request) {
+        try (Workbook workbook = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            Sheet sheet = workbook.createSheet("Approval Copy");
+
+            Font bold = workbook.createFont();
+            bold.setBold(true);
+
+            CellStyle headerStyle = workbook.createCellStyle();
+            headerStyle.setFont(bold);
+            headerStyle.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
+            headerStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+
+            CellStyle approvedStyle = fill(workbook, IndexedColors.LIGHT_GREEN);
+            CellStyle rejectedStyle = fill(workbook, IndexedColors.ROSE);
+            CellStyle pendingStyle = fill(workbook, IndexedColors.LIGHT_YELLOW);
+
+            CellStyle boldStyle = workbook.createCellStyle();
+            boldStyle.setFont(bold);
+
+            Row header = sheet.createRow(0);
+            for (int i = 0; i < HEADERS.length; i++) {
+                Cell cell = header.createCell(i);
+                cell.setCellValue(HEADERS[i]);
                 cell.setCellStyle(headerStyle);
             }
 
-            List<StockRequest.LineItem> lines = requestDto.getLines();
+            List<StockRequestLineDto> lines = request.lines();
+            int totalRequested = 0;
+            int totalApproved = 0;
             int rowNum = 1;
             for (int i = 0; i < lines.size(); i++) {
-                StockRequest.LineItem line = lines.get(i);
+                StockRequestLineDto line = lines.get(i);
                 Row row = sheet.createRow(rowNum++);
                 row.createCell(0).setCellValue(i + 1);
-                row.createCell(1).setCellValue(line.getProductName());
-                row.createCell(2).setCellValue(line.getSku());
-                row.createCell(3).setCellValue(line.getUnit());
-                row.createCell(4).setCellValue(line.getRequestedQuantity());
-                row.createCell(5).setCellValue(line.getApprovedQuantity());
+                row.createCell(1).setCellValue(nullToEmpty(line.productName()));
+                row.createCell(2).setCellValue(nullToEmpty(line.sku()));
+                row.createCell(3).setCellValue(nullToEmpty(line.unit()));
+                row.createCell(4).setCellValue(line.requestedQuantity());
+                row.createCell(5).setCellValue(line.approvedQuantity());
 
-                String statusText = line.getStatus() != null ? line.getStatus().name() : "PENDING";
+                String status = line.lineStatus() != null ? line.lineStatus().name() : "PENDING";
                 Cell statusCell = row.createCell(6);
-                statusCell.setCellValue(statusText);
+                statusCell.setCellValue(status);
+                statusCell.setCellStyle(switch (status) {
+                    case "APPROVED" -> approvedStyle;
+                    case "REJECTED" -> rejectedStyle;
+                    default -> pendingStyle;
+                });
+                row.createCell(7).setCellValue(nullToEmpty(line.notes()));
 
-                String notes = line.getNotes() != null ? line.getNotes() : "";
-                row.createCell(7).setCellValue(notes);
-
-                CellStyle statusStyle = workbook.createCellStyle();
-                if (statusText.equals("APPROVED")) {
-                    statusStyle.setFillForegroundColor(IndexedColors.GREEN.getIndex());
-                } else if (statusText.equals("REJECTED")) {
-                    statusStyle.setFillForegroundColor(IndexedColors.RED.getIndex());
-                } else {
-                    statusStyle.setFillForegroundColor(IndexedColors.YELLOW.getIndex());
-                }
-                statusStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
-                statusCell.setCellStyle(statusStyle);
+                totalRequested += line.requestedQuantity();
+                totalApproved += line.approvedQuantity();
             }
 
-            Row summaryRow = sheet.createRow(rowNum);
-            summaryRow.createCell(0).setCellValue("Total Requested:");
-            summaryRow.createCell(4).setCellValue(requestDto.getTotalQuantity());
-            summaryRow.createCell(5).setCellValue(requestDto.getTotalQuantity());
+            Row totals = sheet.createRow(rowNum++);
+            Cell label = totals.createCell(0);
+            label.setCellValue("Total");
+            label.setCellStyle(boldStyle);
+            Cell requested = totals.createCell(4);
+            requested.setCellValue(totalRequested);
+            requested.setCellStyle(boldStyle);
+            Cell approved = totals.createCell(5);
+            approved.setCellValue(totalApproved);
+            approved.setCellStyle(boldStyle);
 
-            CellStyle summaryStyle = workbook.createCellStyle();
-            summaryStyle.setBold(true);
-            Row summaryRow2 = sheet.createRow(rowNum + 1);
-            summaryRow2.createCell(0).setCellValue("Generated At:");
-            summaryRow2.createCell(4).setCellValue(Instant.now().toString());
-            summaryRow2.createCell(5).setCellValue(requestDto.getBranchName());
+            Row meta = sheet.createRow(rowNum + 1);
+            meta.createCell(0).setCellValue("Branch:");
+            meta.createCell(1).setCellValue(nullToEmpty(request.branchName()));
+            Row generated = sheet.createRow(rowNum + 2);
+            generated.createCell(0).setCellValue("Generated at:");
+            generated.createCell(1).setCellValue(Instant.now().toString());
 
-            sheet.autoSizeColumns(0, headers.length);
-
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            for (int i = 0; i < HEADERS.length; i++) {
+                sheet.autoSizeColumn(i);
+            }
             workbook.write(out);
-            return new ByteArrayInputStream(out.toByteArray());
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to generate approval copy", e);
+            return out.toByteArray();
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to generate approval copy", e);
         }
+    }
+
+    private static CellStyle fill(Workbook workbook, IndexedColors color) {
+        CellStyle style = workbook.createCellStyle();
+        style.setFillForegroundColor(color.getIndex());
+        style.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+        return style;
+    }
+
+    private static String nullToEmpty(String s) {
+        return s == null ? "" : s;
     }
 }

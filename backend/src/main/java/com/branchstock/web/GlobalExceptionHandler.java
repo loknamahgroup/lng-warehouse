@@ -12,6 +12,8 @@ import java.util.Map;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
     @ExceptionHandler(ApiException.class)
     public ResponseEntity<Map<String, String>> handleApi(ApiException ex) {
         return ResponseEntity.badRequest().body(Map.of("message", ex.getMessage()));
@@ -29,7 +31,8 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, String>> handleOther(Exception ex) {
+        log.error("Unhandled error", ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(Map.of("message", ex.getMessage() != null ? ex.getMessage() : "Unexpected error"));
+                .body(Map.of("message", "Unexpected server error"));
     }
 }

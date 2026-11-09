@@ -1,0 +1,15 @@
+/* Mobile "app" feel */
+html { -webkit-text-size-adjust: 100%; }
+body {
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+  -webkit-font-smoothing: antialiased;
+}
+/* iOS zooms into inputs below 16px */
+@media (max-width: 899.95px) {
+  input, select, textarea { font-size: 16px !important; }
+}
+@keyframes page-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.page-in { animation: page-in .22s ease-out; }
+@media (prefers-reduced-motion: reduce) { .page-in { animation: none; } }
+@media print { nav, header, .no-print { display: none !important; } }

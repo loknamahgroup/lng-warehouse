@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   Alert, Autocomplete, Box, Button, Chip, CircularProgress, Dialog, DialogActions,
   DialogContent, DialogTitle, Divider, FormControl, IconButton, InputAdornment,
@@ -12,11 +12,17 @@ import HistoryIcon from '@mui/icons-material/History'
 import SearchIcon from '@mui/icons-material/Search'
 import api from '../api'
 import { useAuth } from '../auth'
+import DataTable from '../components/DataTable'
+import { useFeedback } from '../components/Feedback'
+import { FilterBar, Loading, PageHeader, useIsMobile } from '../components/common'
 
 const emptyLine = { productId: '', quantity: 1, unitCost: '' }
 
 export default function Warehouse() {
   const { isAdmin, user } = useAuth()
+  const isBranchUser = user?.role === 'BRANCH_USER'
+  const isMobile = useIsMobile()
+  const { notify } = useFeedback()
   const [rows, setRows] = useState([])
   const [products, setProducts] = useState([])
   const [loading, setLoading] = useState(true)
@@ -124,6 +130,7 @@ export default function Warehouse() {
     try {
       await api.put(`/api/warehouse/${edit.productId}`, { onHand: Number(qty), note })
       setEdit(null)
+      notify('Stock updated')
       load()
       loadIntakes()
     } catch (e) {
@@ -133,8 +140,9 @@ export default function Warehouse() {
 
   const request = async () => {
     try {
-      await api.post('/api/requests', { productId: reqItem.productId, quantity: Number(reqQty), notes: reqNotes })
+      await api.post('/api/requests', { items: [{ productId: reqItem.productId, quantity: Number(reqQty), notes: reqNotes }], notes: reqNotes })
       setReqItem(null)
+      notify('Request submitted - stock reserved')
       load()
     } catch (e) {
       setError(e.response?.data?.message || 'Request failed')
@@ -208,27 +216,56 @@ export default function Warehouse() {
     }
   }
 
+  const stockColumns = [
+    { key: 'sku', label: 'SKU', mobile: 'subtitle' },
+    {
+      key: 'name', label: 'Product', mobile: 'title',
+      render: (r) => (<>{r.name}{r.lowStock && <Chip size="small" color="warning" label="Low" sx={{ ml: 1 }} />}</>)
+    },
+    { key: 'onHand', label: 'On hand', align: 'right' },
+    { key: 'reserved', label: 'Reserved', align: 'right' },
+    {
+      key: 'available', label: 'Available', align: 'right', mobile: 'badge',
+      render: (r) => <Chip size="small" label={r.available} color={r.available <= 0 ? 'error' : r.lowStock ? 'warning' : 'success'} />
+    }
+  ]
+  const intakeColumns = [
+    { key: 'intakeNo', label: 'Intake No.', mobile: 'title' },
+    { key: 'createdAt', label: 'Date', mobile: 'subtitle', render: (r) => new Date(r.createdAt).toLocaleString() },
+    { key: 'mode', label: 'Mode', mobile: 'badge', render: (r) => <Chip size="small" label={r.mode} /> },
+    { key: 'supplier', label: 'Supplier', render: (r) => r.supplier || '—' },
+    { key: 'updatedBy', label: 'Updated by', render: (r) => r.updatedBy || '—' },
+    { key: 'lineCount', label: 'Lines', align: 'right' },
+    { key: 'totalQuantity', label: 'Total qty', align: 'right' },
+    { key: 'totalCost', label: 'Total cost', align: 'right', render: (r) => `$${Number(r.totalCost).toFixed(2)}` }
+  ]
+  const intakeLineColumns = [
+    { key: 'productName', label: 'Product', mobile: 'title' },
+    { key: 'sku', label: 'SKU', mobile: 'subtitle' },
+    { key: 'quantity', label: 'Qty', align: 'right', mobile: 'badge' },
+    { key: 'unitCost', label: 'Unit cost', align: 'right', render: (l) => `$${Number(l.unitCost).toFixed(2)}` },
+    { key: 'lineCost', label: 'Line cost', align: 'right', render: (l) => `$${Number(l.lineCost).toFixed(2)}` },
+    { key: 'previousOnHand', label: 'Before', align: 'right' },
+    { key: 'newOnHand', label: 'After', align: 'right' }
+  ]
+
   return (
     <Stack spacing={2}>
-      <Stack direction="row" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={1}>
-        <div>
-          <Typography variant="h5">{isAdmin ? 'Warehouse stock' : 'Available stock'}</Typography>
-          <Typography color="text.secondary">
-            {isAdmin
-              ? 'Set warehouse on-hand. Reserved units are blocked for open branch requests.'
-              : 'Requesting an item immediately blocks that quantity so other branches cannot take it.'}
-          </Typography>
-        </div>
-        {isAdmin && (
-          <Button variant="contained" startIcon={<AddIcon />} onClick={() => openBulk()}>
-            Bulk stock update
-          </Button>
+      <PageHeader
+        title={isBranchUser ? 'Available stock' : 'Warehouse stock'}
+        subtitle={isAdmin
+          ? 'Set warehouse on-hand. Reserved units are blocked for open branch requests.'
+          : isBranchUser
+            ? 'Requesting an item immediately blocks that quantity so other branches cannot take it.'
+            : 'Read-only view of warehouse stock and reserved units.'}
+        actions={isAdmin && (
+          <Button variant="contained" startIcon={<AddIcon />} onClick={() => openBulk()}>Bulk stock update</Button>
         )}
-      </Stack>
+      />
 
       {error && <Alert severity="error" onClose={() => setError('')}>{error}</Alert>}
 
-      <Stack direction="row" spacing={1.5} flexWrap="wrap" gap={1}>
+      <FilterBar>
         <TextField size="small" placeholder="Search…" value={search} onChange={(e) => setSearch(e.target.value)} sx={{ width: 180 }}
           InputProps={{ startAdornment: (<InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment>) }} />
         {categories.length > 0 && (
@@ -248,52 +285,20 @@ export default function Warehouse() {
             <MenuItem value="low">Low stock</MenuItem>
           </Select>
         </FormControl>
-      </Stack>
+      </FilterBar>
 
-      {loading ? <Box sx={{ display: 'flex', justifyContent: 'center', pt: 4 }}><CircularProgress /></Box> : (
-      <Paper>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell>SKU</TableCell>
-              <TableCell>Product</TableCell>
-              <TableCell align="right">On hand</TableCell>
-              <TableCell align="right">Reserved</TableCell>
-              <TableCell align="right">Available</TableCell>
-              <TableCell />
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {filtered.length === 0 && (
-              <TableRow><TableCell colSpan={6}><Typography color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>No stock found.</Typography></TableCell></TableRow>
-            )}
-            {filtered.map((row) => (
-              <TableRow key={row.productId}>
-                <TableCell>{row.sku}</TableCell>
-                <TableCell>
-                  {row.name}
-                  {row.lowStock && <Chip size="small" color="warning" label="Low" sx={{ ml: 1 }} />}
-                </TableCell>
-                <TableCell align="right">{row.onHand}</TableCell>
-                <TableCell align="right">{row.reserved}</TableCell>
-                <TableCell align="right">
-                  <Chip size="small" label={row.available} color={row.available <= 0 ? 'error' : row.lowStock ? 'warning' : 'success'} />
-                </TableCell>
-                <TableCell align="right">
-                  {isAdmin ? (
-                    <Stack direction="row" spacing={1}>
-                      <Button size="small" onClick={() => { setEdit(row); setQty(row.onHand); setNote('') }}>Quick set</Button>
-                      <Button size="small" variant="contained" onClick={() => openBulk(row.productId)}>Restock</Button>
-                    </Stack>
-                  ) : (
-                    <Button size="small" variant="contained" disabled={row.available <= 0} onClick={() => { setReqItem(row); setReqQty(1); setReqNotes('') }}>Request</Button>
-                  )}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </Paper>
+      {loading ? <Loading /> : (
+        <DataTable
+          columns={stockColumns} rows={filtered} rowKey="productId" emptyTitle="No stock found"
+          actions={isAdmin || isBranchUser ? (row) => (isAdmin ? (
+            <>
+              <Button size="small" onClick={() => { setEdit(row); setQty(row.onHand); setNote('') }}>Quick set</Button>
+              <Button size="small" variant="contained" onClick={() => openBulk(row.productId)}>Restock</Button>
+            </>
+          ) : (
+            <Button size="small" variant="contained" disabled={row.available <= 0} onClick={() => { setReqItem(row); setReqQty(1); setReqNotes('') }}>Request</Button>
+          )) : undefined}
+        />
       )}
 
       <Dialog open={!!edit} onClose={() => setEdit(null)}>
@@ -326,7 +331,7 @@ export default function Warehouse() {
         </DialogActions>
       </Dialog>
 
-      <Dialog open={bulkOpen} onClose={() => setBulkOpen(false)} fullWidth maxWidth="md">
+      <Dialog open={bulkOpen} onClose={() => setBulkOpen(false)} fullWidth maxWidth="md" fullScreen={isMobile}>
         <DialogTitle>Bulk stock update</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
@@ -378,7 +383,7 @@ export default function Warehouse() {
         </DialogActions>
       </Dialog>
 
-      <Dialog open={!!viewIntake} onClose={() => setViewIntake(null)} fullWidth maxWidth="md">
+      <Dialog open={!!viewIntake} onClose={() => setViewIntake(null)} fullWidth maxWidth="md" fullScreen={isMobile}>
         <DialogTitle>Stock update {viewIntake?.intakeNo}</DialogTitle>
         <DialogContent>
           {viewIntake && (
@@ -396,34 +401,7 @@ export default function Warehouse() {
               </Stack>
               {viewIntake.note && <Typography variant="body2"><b>Note:</b> {viewIntake.note}</Typography>}
               {viewIntake.details && <Typography variant="body2"><b>Details:</b> {viewIntake.details}</Typography>}
-              <Paper>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>SKU</TableCell>
-                      <TableCell>Product</TableCell>
-                      <TableCell align="right">Qty</TableCell>
-                      <TableCell align="right">Unit cost</TableCell>
-                      <TableCell align="right">Line cost</TableCell>
-                      <TableCell align="right">Before</TableCell>
-                      <TableCell align="right">After</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {(viewIntake.lines || []).map((l, i) => (
-                      <TableRow key={i}>
-                        <TableCell>{l.sku}</TableCell>
-                        <TableCell>{l.productName}</TableCell>
-                        <TableCell align="right">{l.quantity}</TableCell>
-                        <TableCell align="right">${Number(l.unitCost).toFixed(2)}</TableCell>
-                        <TableCell align="right">${Number(l.lineCost).toFixed(2)}</TableCell>
-                        <TableCell align="right">{l.previousOnHand}</TableCell>
-                        <TableCell align="right">{l.newOnHand}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </Paper>
+              <DataTable columns={intakeLineColumns} rows={viewIntake.lines || []} dense pageSize={25} />
             </Stack>
           )}
         </DialogContent>
@@ -435,58 +413,26 @@ export default function Warehouse() {
       {isAdmin && (
         <>
           <Divider />
-          <Stack direction="row" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={1}>
+          <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" alignItems={{ xs: 'stretch', md: 'center' }} gap={1.5}>
             <Stack direction="row" alignItems="center" spacing={1}>
               <HistoryIcon fontSize="small" />
               <Typography variant="h6">Stock update history</Typography>
               <Chip size="small" label={`${filteredIntakes.length} records`} />
             </Stack>
-            <Stack direction="row" spacing={1} flexWrap="wrap" gap={1}>
+            <FilterBar>
               <TextField size="small" placeholder="Search…" value={intakeSearch} onChange={(e) => setIntakeSearch(e.target.value)} sx={{ width: 180 }}
                 InputProps={{ startAdornment: (<InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment>) }} />
               <TextField type="date" size="small" label="From" value={exportFrom} onChange={(e) => setExportFrom(e.target.value)} InputLabelProps={{ shrink: true }} />
               <TextField type="date" size="small" label="To" value={exportTo} onChange={(e) => setExportTo(e.target.value)} InputLabelProps={{ shrink: true }} />
               <Button variant="outlined" startIcon={<DownloadIcon />} onClick={downloadIntakes}>Export Excel</Button>
-            </Stack>
+            </FilterBar>
           </Stack>
-          {intakeLoading ? <Box sx={{ display: 'flex', justifyContent: 'center', pt: 4 }}><CircularProgress /></Box> : (
-          <Paper>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Intake No.</TableCell>
-                  <TableCell>Date</TableCell>
-                  <TableCell>Mode</TableCell>
-                  <TableCell>Supplier</TableCell>
-                  <TableCell>Updated by</TableCell>
-                  <TableCell align="right">Lines</TableCell>
-                  <TableCell align="right">Total qty</TableCell>
-                  <TableCell align="right">Total cost</TableCell>
-                  <TableCell />
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {filteredIntakes.length === 0 && (
-                  <TableRow><TableCell colSpan={9}><Typography color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>No stock updates yet.</Typography></TableCell></TableRow>
-                )}
-                {filteredIntakes.map((row) => (
-                  <TableRow key={row.id} hover style={{ cursor: 'pointer' }} onClick={() => openIntakeDetail(row)}>
-                    <TableCell>{row.intakeNo}</TableCell>
-                    <TableCell>{new Date(row.createdAt).toLocaleString()}</TableCell>
-                    <TableCell>{row.mode}</TableCell>
-                    <TableCell>{row.supplier || '—'}</TableCell>
-                    <TableCell>{row.updatedBy || '—'}</TableCell>
-                    <TableCell align="right">{row.lineCount}</TableCell>
-                    <TableCell align="right">{row.totalQuantity}</TableCell>
-                    <TableCell align="right">${Number(row.totalCost).toFixed(2)}</TableCell>
-                    <TableCell align="right">
-                      <Button size="small" onClick={(e) => { e.stopPropagation(); openIntakeDetail(row) }}>View</Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </Paper>
+          {intakeLoading ? <Loading /> : (
+            <DataTable
+              columns={intakeColumns} rows={filteredIntakes} emptyTitle="No stock updates yet"
+              onRowClick={openIntakeDetail}
+              actions={(row) => <Button size="small" onClick={() => openIntakeDetail(row)}>View</Button>}
+            />
           )}
         </>
       )}

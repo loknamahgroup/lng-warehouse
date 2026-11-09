@@ -55,9 +55,12 @@ public class DashboardService {
         int available = stocks.stream().mapToInt(WarehouseStockDto::available).sum();
         List<WarehouseStockDto> low = stocks.stream().filter(WarehouseStockDto::lowStock).toList();
 
-        List<com.branchstock.domain.BranchHolding> holdings = user.getRole() == Role.ADMIN
+        List<com.branchstock.domain.BranchHolding> holdings = user.getRole() != Role.BRANCH_USER
                 ? holdingRepo.findAll()
                 : user.getBranchId() != null ? holdingRepo.findByBranchId(user.getBranchId()) : List.of();
+        long openRequests = user.getRole() == Role.BRANCH_USER
+                ? (user.getBranchId() == null ? 0 : requestRepo.countByBranchIdAndStatus(user.getBranchId(), RequestStatus.RESERVED))
+                : requestRepo.countByStatus(RequestStatus.RESERVED);
 
         int holdingQty = holdings.stream().mapToInt(h -> h.getQuantity()).sum();
         List<DashboardDto.HoldingSummary> summaries = holdings.stream()
@@ -77,7 +80,7 @@ public class DashboardService {
                 onHand,
                 reserved,
                 available,
-                requestRepo.countByStatus(RequestStatus.RESERVED),
+                openRequests,
                 holdingQty,
                 low,
                 summaries

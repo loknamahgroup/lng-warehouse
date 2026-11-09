@@ -1,13 +1,18 @@
 import { useEffect, useState } from 'react'
-import {
-  Alert, Box, Button, Chip, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, Paper, Stack, Switch,
-  Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography
-} from '@mui/material'
+import { Alert, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, Stack, Switch, TextField } from '@mui/material'
 import api from '../api'
+import { useAuth } from '../auth'
+import DataTable from '../components/DataTable'
+import { useFeedback } from '../components/Feedback'
+import { Loading, PageHeader, useIsMobile } from '../components/common'
 
 const empty = { username: '', password: '', displayName: '', role: 'BRANCH_USER', branchId: '', active: true }
+const roleLabel = { ADMIN: 'Admin', SUBADMIN: 'Sub-admin', BRANCH_USER: 'Branch user' }
 
 export default function Users() {
+  const { user: me } = useAuth()
+  const { notify } = useFeedback()
+  const mobile = useIsMobile()
   const [rows, setRows] = useState([])
   const [branches, setBranches] = useState([])
   const [loading, setLoading] = useState(true)
@@ -17,7 +22,6 @@ export default function Users() {
   const [error, setError] = useState('')
 
   const load = async () => {
-    setLoading(true)
     try {
       const [u, b] = await Promise.all([api.get('/api/users'), api.get('/api/branches')])
       setRows(u.data)
@@ -28,96 +32,73 @@ export default function Users() {
 
   const save = async () => {
     try {
-      const payload = {
-        ...form,
-        branchId: form.role === 'ADMIN' ? null : form.branchId
-      }
+      const payload = { ...form, branchId: form.role === 'BRANCH_USER' ? form.branchId : null }
       if (editing) await api.put(`/api/users/${editing.id}`, { ...editing, ...payload })
       else await api.post('/api/users', payload)
       setOpen(false)
+      notify(editing ? 'User updated' : 'User created')
       load()
     } catch (e) {
       setError(e.response?.data?.message || 'Save failed')
     }
   }
-
   const toggleActive = async (row) => {
-    if (row.username === 'admin') return
     try {
       await api.put(`/api/users/${row.id}`, { ...row, active: !row.active })
       load()
     } catch (e) {
-      setError(e.response?.data?.message || 'Update failed')
+      notify(e.response?.data?.message || 'Update failed', 'error')
     }
   }
+  const locked = (row) => row.username === 'admin'
+  const openForm = (row) => { setEditing(row); setForm(row ? { ...empty, ...row, password: '' } : empty); setError(''); setOpen(true) }
+
+  const columns = [
+    { key: 'displayName', label: 'Name', mobile: 'title' },
+    { key: 'username', label: 'Username', mobile: 'subtitle' },
+    { key: 'role', label: 'Role', render: (r) => roleLabel[r.role] || r.role },
+    { key: 'branchName', label: 'Branch', render: (r) => r.branchName || '—' },
+    { key: 'active', label: 'Status', mobile: 'badge', render: (r) => <Chip size="small" color={r.active ? 'success' : 'default'} label={r.active ? 'Active' : 'Inactive'} /> }
+  ]
 
   return (
     <Stack spacing={2}>
-      <Stack direction="row" justifyContent="space-between" alignItems="center">
-        <div>
-          <Typography variant="h5">Users</Typography>
-          <Typography color="text.secondary">Admin accounts and branch users assigned to a shop</Typography>
-        </div>
-        <Button variant="contained" onClick={() => { setEditing(null); setForm(empty); setError(''); setOpen(true) }}>Add user</Button>
-      </Stack>
-      {error && <Alert severity="error" onClose={() => setError('')}>{error}</Alert>}
-      {loading ? <Box sx={{ display: 'flex', justifyContent: 'center', pt: 4 }}><CircularProgress /></Box> : (
-      <Paper>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell>Username</TableCell>
-              <TableCell>Name</TableCell>
-              <TableCell>Role</TableCell>
-              <TableCell>Branch</TableCell>
-              <TableCell>Status</TableCell>
-              <TableCell />
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {rows.map((row) => (
-              <TableRow key={row.id} sx={{ opacity: row.active ? 1 : 0.6 }}>
-                <TableCell>{row.username}</TableCell>
-                <TableCell>{row.displayName}</TableCell>
-                <TableCell>{row.role}</TableCell>
-                <TableCell>{row.branchName || '—'}</TableCell>
-                <TableCell>
-                  <Stack direction="row" spacing={1} alignItems="center">
-                    <Switch size="small" checked={row.active} disabled={row.username === 'admin'} onChange={() => toggleActive(row)} />
-                    <Chip size="small" color={row.active ? 'success' : 'default'} label={row.active ? 'Active' : 'Inactive'} />
-                  </Stack>
-                </TableCell>
-                <TableCell>
-                  <Button size="small" disabled={row.username === 'admin'} onClick={() => { setEditing(row); setForm({ ...empty, ...row, password: '' }); setError(''); setOpen(true) }}>Edit</Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </Paper>
+      <PageHeader title="Users" subtitle="Admin accounts and branch users assigned to a shop" actions={<Button variant="contained" onClick={() => openForm(null)}>Add user</Button>} />
+      {loading ? <Loading /> : (
+        <DataTable
+          columns={columns} rows={rows} emptyTitle="No users"
+          rowSx={(r) => ({ opacity: r.active ? 1 : 0.65 })}
+          actions={(r) => (
+            <>
+              <Switch size="small" checked={r.active} disabled={locked(r) || r.username === me?.username} onChange={() => toggleActive(r)} inputProps={{ 'aria-label': 'Active' }} />
+              <Button size="small" disabled={locked(r)} onClick={() => openForm(r)}>Edit</Button>
+            </>
+          )}
+        />
       )}
-      <Dialog open={open} onClose={() => setOpen(false)} fullWidth>
+      <Dialog open={open} onClose={() => setOpen(false)} fullWidth maxWidth="sm" fullScreen={mobile}>
         <DialogTitle>{editing ? 'Update user' : 'New user'}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
             {error && <Alert severity="error">{error}</Alert>}
-            <TextField label="Username" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} />
-            <TextField label={editing ? 'New password (leave blank to keep)' : 'Password'} type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
+            <TextField label="Username" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} autoCapitalize="none" />
+            <TextField label={editing ? 'New password (leave blank to keep)' : 'Password (min 6 characters)'} type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} autoComplete="new-password" />
             <TextField label="Display name" value={form.displayName} onChange={(e) => setForm({ ...form, displayName: e.target.value })} />
             <TextField select label="Role" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
               <MenuItem value="ADMIN">Admin</MenuItem>
+              <MenuItem value="SUBADMIN">Sub-admin (read-only)</MenuItem>
               <MenuItem value="BRANCH_USER">Branch user</MenuItem>
             </TextField>
             {form.role === 'BRANCH_USER' && (
-              <TextField select label="Branch" value={form.branchId} onChange={(e) => setForm({ ...form, branchId: e.target.value })}>
+              <TextField select label="Branch" value={form.branchId || ''} onChange={(e) => setForm({ ...form, branchId: e.target.value })}>
                 {branches.map((b) => <MenuItem key={b.id} value={b.id}>{b.name}</MenuItem>)}
               </TextField>
             )}
           </Stack>
         </DialogContent>
-        <DialogActions>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
           <Button onClick={() => setOpen(false)}>Cancel</Button>
-          <Button variant="contained" onClick={save}>Save</Button>
+          <Button variant="contained" onClick={save} disabled={!form.username || (!editing && form.password.length < 6) || (form.role === 'BRANCH_USER' && !form.branchId)}>Save</Button>
         </DialogActions>
       </Dialog>
     </Stack>
