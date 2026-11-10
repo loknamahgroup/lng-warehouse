@@ -5,6 +5,7 @@ import App from './App'
 import { AppThemeProvider } from './theme'
 import { AuthProvider } from './auth'
 import { FeedbackProvider } from './components/Feedback'
+import ErrorBoundary from './components/ErrorBoundary'
 import './index.css'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
@@ -13,7 +14,9 @@ ReactDOM.createRoot(document.getElementById('root')).render(
       <AppThemeProvider>
         <FeedbackProvider>
           <AuthProvider>
-            <App />
+            <ErrorBoundary>
+              <App />
+            </ErrorBoundary>
           </AuthProvider>
         </FeedbackProvider>
       </AppThemeProvider>

@@ -39,7 +39,11 @@ export default function Dashboard() {
   const [error, setError] = useState('')
 
   const load = () => api.get('/api/dashboard').then((r) => setData(r.data)).catch((e) => setError(e.response?.data?.message || 'Failed to load'))
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    load()
+    const t = setInterval(() => api.get('/api/dashboard').then((r) => setData(r.data)).catch(() => {}), 60000)
+    return () => clearInterval(t)
+  }, [])
 
   if (error) return <Alert severity="error">{error}</Alert>
   if (!data) return <Loading />

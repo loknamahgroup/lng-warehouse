@@ -16,6 +16,7 @@ import com.branchstock.dto.CreateSaleRequest;
 import com.branchstock.dto.CreateSoldItemRequest;
 import com.branchstock.dto.SaleInvoiceDto;
 import com.branchstock.dto.SaleLineItemDto;
+import com.branchstock.repo.BranchRepository;
 import com.branchstock.repo.BranchHoldingRepository;
 import com.branchstock.repo.ProductRepository;
 import com.branchstock.repo.SaleInvoiceRepository;
@@ -40,19 +41,22 @@ public class SaleInvoiceService {
     private final BranchHoldingRepository holdingRepo;
     private final CurrentUserService currentUser;
     private final MongoTemplate mongo;
+    private final BranchRepository branchRepo;
 
     public SaleInvoiceService(
             SaleInvoiceRepository invoiceRepo,
             ProductRepository productRepo,
             BranchHoldingRepository holdingRepo,
             CurrentUserService currentUser,
-            MongoTemplate mongo
+            MongoTemplate mongo,
+            BranchRepository branchRepo
     ) {
         this.invoiceRepo = invoiceRepo;
         this.productRepo = productRepo;
         this.holdingRepo = holdingRepo;
         this.currentUser = currentUser;
         this.mongo = mongo;
+        this.branchRepo = branchRepo;
     }
 
     public List<SaleInvoiceDto> list() {
@@ -79,6 +83,9 @@ public class SaleInvoiceService {
         }
         UserAccount user = currentUser.requireUser();
         Branch branch = requireBranch(user);
+        if (!branchRepo.findById(branch.getId()).map(Branch::isActive).orElse(false)) {
+            throw new ApiException("Your branch is inactive. Contact an administrator.");
+        }
 
         // 1. Validate ALL lines against branch holdings — nothing saved if any line fails
         Map<String, Product> products = new HashMap<>();

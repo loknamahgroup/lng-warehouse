@@ -8,6 +8,7 @@ import AddIcon from '@mui/icons-material/Add'
 import DownloadIcon from '@mui/icons-material/Download'
 import api from '../api'
 import { useAuth } from '../auth'
+import { money, currencySymbol } from '../format'
 import DataTable from '../components/DataTable'
 import { useFeedback } from '../components/Feedback'
 import { FilterBar, Loading, PageHeader, useIsMobile } from '../components/common'
@@ -137,7 +138,7 @@ export default function Sales() {
 
   const formatItems = (row) => {
     if (!row.items || row.items.length === 0) return '-'
-    return row.items.map((it) => `${it.productName} x${it.quantity} @ $${Number(it.price).toFixed(2)}`).join(', ')
+    return row.items.map((it) => `${it.productName} x${it.quantity} @ ${money(it.price)}`).join(', ')
   }
 
   const totalUnits = (row) => {
@@ -150,7 +151,7 @@ export default function Sales() {
   const saleColumns = [
     { key: 'invoiceNo', label: 'Invoice #', mobile: 'title' },
     { key: 'soldAt', label: 'Date', mobile: 'subtitle', render: (r) => new Date(r.soldAt).toLocaleString() },
-    { key: 'total', label: 'Amount', align: 'right', mobile: 'badge', render: (r) => <strong>${Number(r.total || 0).toFixed(2)}</strong> },
+    { key: 'total', label: 'Amount', align: 'right', mobile: 'badge', render: (r) => <strong>{money(r.total || 0)}</strong> },
     { key: 'branchName', label: 'Branch' },
     { key: 'customerName', label: 'Customer', render: (r) => r.customerName || '-' },
     { key: 'units', label: 'Units', align: 'right', render: (r) => totalUnits(r) },
@@ -159,9 +160,9 @@ export default function Sales() {
   const invoiceLineColumns = [
     { key: 'productName', label: 'Product', mobile: 'title' },
     { key: 'sku', label: 'SKU', mobile: 'subtitle' },
-    { key: 'amount', label: 'Amount', align: 'right', mobile: 'badge', render: (it) => `$${Number(it.amount).toFixed(2)}` },
+    { key: 'amount', label: 'Amount', align: 'right', mobile: 'badge', render: (it) => `${money(it.amount)}` },
     { key: 'quantity', label: 'Qty', align: 'right' },
-    { key: 'price', label: 'Price', align: 'right', render: (it) => `$${Number(it.price).toFixed(2)}` }
+    { key: 'price', label: 'Price', align: 'right', render: (it) => `${money(it.price)}` }
   ]
 
   if (loading) return <Loading />
@@ -188,12 +189,12 @@ export default function Sales() {
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 0.5, sm: 3 }} sx={{ mt: 1 }}>
             <Typography>Invoices: <strong>{summary.invoiceCount || 0}</strong></Typography>
             <Typography>Items sold: <strong>{summary.itemCount || 0}</strong></Typography>
-            <Typography>Total value: <strong>${Number(summary.totalValue || 0).toFixed(2)}</strong></Typography>
+            <Typography>Total value: <strong>{money(summary.totalValue || 0)}</strong></Typography>
           </Stack>
           {summary.byProduct && Object.keys(summary.byProduct).length > 0 && (
             <Box sx={{ mt: 1 }}>
               {Object.entries(summary.byProduct).map(([name, agg]) => (
-                <Typography key={name} variant="body2">{name}: {agg.quantity} units - ${Number(agg.totalValue).toFixed(2)}</Typography>
+                <Typography key={name} variant="body2">{name}: {agg.quantity} units - {money(agg.totalValue)}</Typography>
               ))}
             </Box>
           )}
@@ -202,7 +203,7 @@ export default function Sales() {
 
       <DataTable columns={saleColumns} rows={sales} emptyTitle="No sales found" onRowClick={setViewRow} dense pageSize={25} />
       {sales.length > 0 && (
-        <Typography fontWeight={600} sx={{ textAlign: 'right' }}>Grand total: ${totalValue.toFixed(2)}</Typography>
+        <Typography fontWeight={600} sx={{ textAlign: 'right' }}>Grand total: {money(totalValue)}</Typography>
       )}
       {/* Record sale dialog */}
       <Dialog open={open} onClose={() => setOpen(false)} fullWidth maxWidth="md" fullScreen={isMobile}>
@@ -254,12 +255,12 @@ export default function Sales() {
                   noOptionsText="No matching product"
                 />
                 <TextField label="Qty" type="number" size="small" value={item.quantity}
-                  onChange={(e) => handleItemChange(idx, 'quantity', Number(e.target.value))} sx={{ width: { md: 90 } }} inputProps={{ min: 1, inputMode: 'numeric' }} />
+                  onChange={(e) => handleItemChange(idx, 'quantity', Number(e.target.value))} sx={{ width: { md: 90 } }} error={isBranchUser && !!item.productId && item.quantity > (holdingById.get(item.productId) || 0)} helperText={isBranchUser && item.productId ? `Max ${holdingById.get(item.productId) || 0}` : undefined} inputProps={{ min: 1, inputMode: 'numeric' }} />
                 <TextField label="Price" type="number" size="small" value={item.price}
                   onChange={(e) => handleItemChange(idx, 'price', Number(e.target.value))} sx={{ width: { md: 120 } }}
-                  InputProps={{ startAdornment: <span>$</span> }} />
+                  InputProps={{ startAdornment: <span>{currencySymbol}</span> }} />
                 {item.productId && (
-                  <Typography variant="body2" color="text.secondary">= ${(Number(item.quantity) * Number(item.price)).toFixed(2)}</Typography>
+                  <Typography variant="body2" color="text.secondary">= {money(Number(item.quantity) * Number(item.price))}</Typography>
                 )}
                 {items.length > 1 && (
                   <Button color="error" size="small" onClick={() => removeItem(idx)}>Remove</Button>
@@ -302,7 +303,7 @@ export default function Sales() {
                 <Typography fontWeight={600}>Items:</Typography>
                 <Box sx={{ mt: 1 }}><DataTable columns={invoiceLineColumns} rows={viewRow.items || []} dense pageSize={25} /></Box>
               </Box>
-              <Typography fontWeight={600}><strong>Grand total:</strong> ${Number(viewRow.total || 0).toFixed(2)}</Typography>
+              <Typography fontWeight={600}><strong>Grand total:</strong> {money(viewRow.total || 0)}</Typography>
             </Stack>
           )}
         </DialogContent>

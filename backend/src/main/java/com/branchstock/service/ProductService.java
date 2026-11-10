@@ -26,7 +26,20 @@ public class ProductService {
         return productRepo.findAll().stream().map(this::toDto).toList();
     }
 
+    private void validate(ProductDto dto) {
+        if (dto.sku() == null || dto.sku().isBlank()) {
+            throw new ApiException("SKU is required");
+        }
+        if (dto.name() == null || dto.name().isBlank()) {
+            throw new ApiException("Name is required");
+        }
+        if (dto.reorderLevel() < 0) {
+            throw new ApiException("Reorder level cannot be negative");
+        }
+    }
+
     public ProductDto create(ProductDto dto) {
+        validate(dto);
         if (productRepo.existsBySku(dto.sku().trim())) {
             throw new ApiException("SKU already exists");
         }
@@ -45,6 +58,7 @@ public class ProductService {
     }
 
     public ProductDto update(String id, ProductDto dto) {
+        validate(dto);
         Product product = productRepo.findById(id).orElseThrow(() -> new ApiException("Product not found"));
         productRepo.findBySku(dto.sku().trim()).ifPresent(existing -> {
             if (!existing.getId().equals(id)) {
@@ -54,7 +68,7 @@ public class ProductService {
         product.setSku(dto.sku().trim());
         product.setName(dto.name().trim());
         product.setCategory(dto.category());
-        product.setUnit(dto.unit());
+        product.setUnit(dto.unit() == null || dto.unit().isBlank() ? "unit" : dto.unit().trim());
         product.setDescription(dto.description());
         product.setReorderLevel(dto.reorderLevel());
         product.setActive(dto.active());

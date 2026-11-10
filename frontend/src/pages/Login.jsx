@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Alert, Avatar, Box, Button, IconButton, InputAdornment, Stack, TextField, Typography } from '@mui/material'
 import { alpha, useTheme } from '@mui/material/styles'
@@ -11,7 +11,7 @@ import { useAuth } from '../auth'
 import { useThemeMode } from '../theme'
 
 export default function Login() {
-  const { login } = useAuth()
+  const { user, login } = useAuth()
   const { mode, toggle } = useThemeMode()
   const theme = useTheme()
   const navigate = useNavigate()
@@ -20,6 +20,9 @@ export default function Login() {
   const [show, setShow] = useState(false)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const expired = new URLSearchParams(window.location.search).get('expired') === '1'
+
+  useEffect(() => { if (user) navigate('/', { replace: true }) }, [user]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const submit = async (e) => {
     e.preventDefault()
@@ -63,6 +66,7 @@ export default function Login() {
               Use your LNG Control Center account.
             </Typography>
           </Stack>
+          {expired && !error && <Alert severity="info">Your session has expired. Please sign in again.</Alert>}
           {error && <Alert severity="error">{error}</Alert>}
           <TextField label="Username" value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" autoCapitalize="none" fullWidth required autoFocus />
           <TextField
