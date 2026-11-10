@@ -1,6 +1,7 @@
 package com.branchstock.service;
 
 import com.branchstock.domain.BranchHolding;
+import com.branchstock.domain.Permission;
 import com.branchstock.domain.Product;
 import com.branchstock.domain.RequestStatus;
 import com.branchstock.domain.Role;
@@ -192,7 +193,7 @@ public class RequestService {
                 throw new ApiException("You can only cancel your branch requests");
             }
         } else {
-            requireAdmin();
+            requireApprover();
         }
         requireReserved(request, "cancelled");
         releaseAll(request);
@@ -202,7 +203,7 @@ public class RequestService {
     }
 
     public StockRequestDto reject(String id) {
-        requireAdmin();
+        requireApprover();
         StockRequest request = require(id);
         requireReserved(request, "rejected");
         releaseAll(request);
@@ -219,7 +220,7 @@ public class RequestService {
     }
 
     public StockRequestDto approve(String id, ApproveRequestDto dto) {
-        requireAdmin();
+        requireApprover();
         StockRequest request = require(id);
         requireReserved(request, "approved");
         if (dto == null || dto.lines() == null || dto.lines().isEmpty()) {
@@ -276,7 +277,7 @@ public class RequestService {
 
     /** Sets the proposed approved quantity per line without shipping anything yet. */
     public StockRequestDto adjustLines(String id, AdjustLineRequestDto dto) {
-        requireAdmin();
+        requireApprover();
         StockRequest request = require(id);
         requireReserved(request, "adjusted");
         if (dto == null || dto.adjustments() == null || dto.adjustments().isEmpty()) {
@@ -355,9 +356,9 @@ public class RequestService {
         }
     }
 
-    private void requireAdmin() {
-        if (!currentUser.isAdmin()) {
-            throw new ApiException("Admin only");
+    private void requireApprover() {
+        if (!currentUser.has(Permission.REQUESTS_APPROVE)) {
+            throw new ApiException("You do not have permission to manage requests");
         }
     }
 

@@ -10,7 +10,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/warehouse/intakes")
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAuthority('PERM_STOCK_MANAGE')")
 public class StockIntakeController {
 
     private final StockIntakeService intakeService;

@@ -50,19 +50,19 @@ public class RequestController {
     }
 
     @PostMapping("/requests/{id}/reject")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('PERM_REQUESTS_APPROVE')")
     public StockRequestDto reject(@PathVariable String id) {
         return requestService.reject(id);
     }
 
     @PostMapping("/requests/{id}/approve")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('PERM_REQUESTS_APPROVE')")
     public StockRequestDto approve(@PathVariable String id, @RequestBody ApproveRequestDto dto) {
         return requestService.approve(id, dto);
     }
 
     @PostMapping("/requests/{id}/adjust")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('PERM_REQUESTS_APPROVE')")
     public StockRequestDto adjustLines(@PathVariable String id, @RequestBody AdjustLineRequestDto dto) {
         return requestService.adjustLines(id, dto);
     }

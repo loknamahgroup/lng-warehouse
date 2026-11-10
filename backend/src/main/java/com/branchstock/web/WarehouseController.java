@@ -25,13 +25,13 @@ public class WarehouseController {
     }
 
     @GetMapping("/movements")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('PERM_MOVEMENTS_VIEW')")
     public List<StockMovementDto> movements() {
         return warehouseService.listMovements();
     }
 
     @PutMapping("/{productId}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('PERM_STOCK_MANAGE')")
     public WarehouseStockDto setOnHand(@PathVariable String productId, @RequestBody StockSetRequest request) {
         return warehouseService.setOnHand(productId, request);
     }

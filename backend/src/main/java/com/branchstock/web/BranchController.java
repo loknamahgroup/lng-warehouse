@@ -23,13 +23,13 @@ public class BranchController {
     }
 
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('PERM_BRANCHES_MANAGE')")
     public BranchDto create(@RequestBody BranchDto dto) {
         return branchService.create(dto);
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('PERM_BRANCHES_MANAGE')")
     public BranchDto update(@PathVariable String id, @RequestBody BranchDto dto) {
         return branchService.update(id, dto);
     }

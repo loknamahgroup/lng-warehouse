@@ -14,10 +14,10 @@ import Users from './pages/Users'
 import Sales from './pages/Sales'
 import Movements from './pages/Movements'
 
-function Guard({ children, adminOnly, branchOnly }) {
-  const { user, isAdmin } = useAuth()
+function Guard({ children, perm, branchOnly }) {
+  const { user, can } = useAuth()
   if (!user) return <Navigate to="/login" replace />
-  if (adminOnly && !isAdmin) return <Navigate to="/" replace />
+  if (perm && !can(perm)) return <Navigate to="/" replace />
   if (branchOnly && user.role !== 'BRANCH_USER') return <Navigate to="/" replace />
   return children
 }
@@ -35,15 +35,15 @@ export default function App() {
         }
       >
         <Route index element={<Dashboard />} />
-        <Route path="branches" element={<Guard adminOnly><Branches /></Guard>} />
-        <Route path="products" element={<Guard adminOnly><Products /></Guard>} />
+        <Route path="branches" element={<Guard perm="BRANCHES_MANAGE"><Branches /></Guard>} />
+        <Route path="products" element={<Guard perm="PRODUCTS_MANAGE"><Products /></Guard>} />
         <Route path="warehouse" element={<Warehouse />} />
         <Route path="requests" element={<Requests />} />
         <Route path="requests/approve/:id" element={<ApproveRequest />} />
         <Route path="create-request" element={<Guard branchOnly><CreateRequest /></Guard>} />
         <Route path="holdings" element={<Holdings />} />
-        <Route path="users" element={<Guard adminOnly><Users /></Guard>} />
-        <Route path="movements" element={<Guard adminOnly><Movements /></Guard>} />
+        <Route path="users" element={<Guard perm="USERS_MANAGE"><Users /></Guard>} />
+        <Route path="movements" element={<Guard perm="MOVEMENTS_VIEW"><Movements /></Guard>} />
         <Route path="sales" element={<Sales />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

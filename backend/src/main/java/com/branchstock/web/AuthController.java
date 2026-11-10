@@ -3,6 +3,7 @@ package com.branchstock.web;
 import com.branchstock.security.LoginAttemptService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.security.core.AuthenticationException;
+import com.branchstock.domain.Permission;
 import com.branchstock.domain.UserAccount;
 import com.branchstock.dto.ChangePasswordRequest;
 import com.branchstock.dto.LoginRequest;
@@ -61,7 +62,8 @@ public class AuthController {
                 user.getDisplayName(),
                 user.getRole(),
                 user.getBranchId(),
-                user.getBranchName()
+                user.getBranchName(),
+                Permission.effectiveNames(user)
         );
     }
 

@@ -13,7 +13,7 @@ import { statusColors, statusLabels } from '../requestStatus'
 export default function ApproveRequest() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { isAdmin } = useAuth()
+  const { can } = useAuth()
   const { notify, confirm } = useFeedback()
   const [request, setRequest] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -94,7 +94,7 @@ export default function ApproveRequest() {
   if (loading) return <Loading />
   if (error) return <Alert severity="error">{error}</Alert>
 
-  const canAct = isAdmin && request.status === 'RESERVED'
+  const canAct = can('REQUESTS_APPROVE') && request.status === 'RESERVED'
   const columns = [
     { key: 'productName', label: 'Product', mobile: 'title' },
     { key: 'sku', label: 'SKU', mobile: 'subtitle' },

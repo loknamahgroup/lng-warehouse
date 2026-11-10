@@ -1,5 +1,6 @@
 package com.branchstock.service;
 
+import com.branchstock.domain.Permission;
 import com.branchstock.domain.Role;
 import com.branchstock.domain.UserAccount;
 import com.branchstock.repo.UserAccountRepository;
@@ -27,6 +28,10 @@ public class CurrentUserService {
 
     public UserAccount requireByUsername(String username) {
         return userRepo.findByUsername(username).orElseThrow(() -> new ApiException("User not found"));
+    }
+
+    public boolean has(Permission permission) {
+        return Permission.effective(requireUser()).contains(permission);
     }
 
     public boolean isAdmin() {
