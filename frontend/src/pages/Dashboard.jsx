@@ -32,7 +32,7 @@ function Stat({ label, value, hint, icon, color = 'primary', sx }) {
 }
 
 export default function Dashboard() {
-  const { user, isAdmin } = useAuth()
+  const { user, can } = useAuth()
   const navigate = useNavigate()
   const isBranchUser = user?.role === 'BRANCH_USER'
   const [data, setData] = useState(null)
@@ -50,16 +50,18 @@ export default function Dashboard() {
       <Button variant="contained" startIcon={<AddIcon />} onClick={() => navigate('/create-request')}>New request</Button>
       <Button variant="outlined" onClick={() => navigate('/sales')}>Record sale</Button>
     </>
-  ) : isAdmin ? (
+  ) : can('REQUESTS_APPROVE') || can('STOCK_MANAGE') ? (
     <>
-      <Button variant="contained" startIcon={<AssignmentIcon />} onClick={() => navigate('/requests')}>
-        Review requests{data.openRequests > 0 ? ` (${data.openRequests})` : ''}
-      </Button>
-      <Button variant="outlined" startIcon={<WarehouseIcon />} onClick={() => navigate('/warehouse')}>Restock</Button>
+      {can('REQUESTS_APPROVE') && (
+        <Button variant="contained" startIcon={<AssignmentIcon />} onClick={() => navigate('/requests')}>
+          Review requests{data.openRequests > 0 ? ` (${data.openRequests})` : ''}
+        </Button>
+      )}
+      {can('STOCK_MANAGE') && (
+        <Button variant={can('REQUESTS_APPROVE') ? 'outlined' : 'contained'} startIcon={<WarehouseIcon />} onClick={() => navigate('/warehouse')}>Restock</Button>
+      )}
     </>
-  ) : null
-
-  return (
+  ) : null (
     <Stack spacing={3}>
       <PageHeader
         title={`Hello, ${(user?.displayName || user?.username || '').split(' ')[0]}`}

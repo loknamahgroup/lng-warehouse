@@ -30,27 +30,27 @@ public class AdminController {
     }
 
     @GetMapping("/users")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('PERM_USERS_MANAGE')")
     public List<UserDto> users() {
         return userAdminService.list();
     }
 
     @PostMapping("/users")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('PERM_USERS_MANAGE')")
     public UserDto createUser(@RequestBody CreateUserRequest request) {
         return userAdminService.create(request);
     }
 
     @PutMapping("/users/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('PERM_USERS_MANAGE')")
     public UserDto updateUser(@PathVariable String id, @RequestBody CreateUserRequest request) {
         return userAdminService.update(id, request);
     }
 
     @PostMapping("/users/{id}/change-password")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('PERM_USERS_MANAGE')")
     public Map<String, String> changePassword(@PathVariable String id, @RequestBody ChangePasswordRequest request) {
-        userAdminService.changePassword(id, request, true);
+        userAdminService.resetPassword(id, request);
         return Map.of("message", "Password updated");
     }
 }

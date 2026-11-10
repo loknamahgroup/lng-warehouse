@@ -23,13 +23,13 @@ public class ProductController {
     }
 
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('PERM_PRODUCTS_MANAGE')")
     public ProductDto create(@RequestBody ProductDto dto) {
         return productService.create(dto);
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('PERM_PRODUCTS_MANAGE')")
     public ProductDto update(@PathVariable String id, @RequestBody ProductDto dto) {
         return productService.update(id, dto);
     }

@@ -10,7 +10,8 @@ import { FilterBar, Loading, PageHeader } from '../components/common'
 import { statusColors, statusLabels } from '../requestStatus'
 
 export default function Requests() {
-  const { user, isAdmin } = useAuth()
+  const { user, can } = useAuth()
+  const canApprove = can('REQUESTS_APPROVE')
   const { notify, confirm } = useFeedback()
   const navigate = useNavigate()
   const isBranchUser = user?.role === 'BRANCH_USER'
@@ -105,10 +106,10 @@ export default function Requests() {
           onRowClick={(r) => navigate(`/requests/approve/${r.id}`)}
           actions={(r) => (
             <>
-              <Button size="small" variant={isAdmin && r.status === 'RESERVED' ? 'contained' : 'text'} onClick={() => navigate(`/requests/approve/${r.id}`)}>
-                {isAdmin && r.status === 'RESERVED' ? 'Review' : 'View'}
+              <Button size="small" variant={canApprove && r.status === 'RESERVED' ? 'contained' : 'text'} onClick={() => navigate(`/requests/approve/${r.id}`)}>
+                {canApprove && r.status === 'RESERVED' ? 'Review' : 'View'}
               </Button>
-              {r.status === 'RESERVED' && (isAdmin || isBranchUser) && <Button size="small" color="error" onClick={() => cancel(r)}>Cancel</Button>}
+              {r.status === 'RESERVED' && (canApprove || isBranchUser) && <Button size="small" color="error" onClick={() => cancel(r)}>Cancel</Button>}
             </>
           )}
         />

@@ -19,7 +19,8 @@ import { FilterBar, Loading, PageHeader, useIsMobile } from '../components/commo
 const emptyLine = { productId: '', quantity: 1, unitCost: '' }
 
 export default function Warehouse() {
-  const { isAdmin, user } = useAuth()
+  const { can, user } = useAuth()
+  const canStock = can('STOCK_MANAGE')
   const isBranchUser = user?.role === 'BRANCH_USER'
   const isMobile = useIsMobile()
   const { notify } = useFeedback()
@@ -62,7 +63,7 @@ export default function Warehouse() {
   }
 
   const loadIntakes = async () => {
-    if (!isAdmin) return
+    if (!canStock) return
     setIntakeLoading(true)
     try { setIntakes((await api.get('/api/warehouse/intakes')).data || []) }
     catch (e) { setError(e.response?.data?.message || 'Failed to load stock updates') }
@@ -70,7 +71,7 @@ export default function Warehouse() {
   }
 
   useEffect(() => { load() }, [])
-  useEffect(() => { if (isAdmin) loadIntakes() }, [])
+  useEffect(() => { if (canStock) loadIntakes() }, [])
   useEffect(() => {
     if (bulkOpen && !updatedBy && user) {
       setUpdatedBy(user.displayName || user.username || '')
@@ -253,12 +254,12 @@ export default function Warehouse() {
     <Stack spacing={2}>
       <PageHeader
         title={isBranchUser ? 'Available stock' : 'Warehouse stock'}
-        subtitle={isAdmin
+        subtitle={canStock
           ? 'Set warehouse on-hand. Reserved units are blocked for open branch requests.'
           : isBranchUser
             ? 'Requesting an item immediately blocks that quantity so other branches cannot take it.'
             : 'Read-only view of warehouse stock and reserved units.'}
-        actions={isAdmin && (
+        actions={canStock && (
           <Button variant="contained" startIcon={<AddIcon />} onClick={() => openBulk()}>Bulk stock update</Button>
         )}
       />
@@ -290,7 +291,7 @@ export default function Warehouse() {
       {loading ? <Loading /> : (
         <DataTable
           columns={stockColumns} rows={filtered} rowKey="productId" emptyTitle="No stock found"
-          actions={isAdmin || isBranchUser ? (row) => (isAdmin ? (
+          actions={canStock || isBranchUser ? (row) => (canStock ? (
             <>
               <Button size="small" onClick={() => { setEdit(row); setQty(row.onHand); setNote('') }}>Quick set</Button>
               <Button size="small" variant="contained" onClick={() => openBulk(row.productId)}>Restock</Button>
@@ -410,7 +411,7 @@ export default function Warehouse() {
         </DialogActions>
       </Dialog>
 
-      {isAdmin && (
+      {canStock && (
         <>
           <Divider />
           <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" alignItems={{ xs: 'stretch', md: 'center' }} gap={1.5}>

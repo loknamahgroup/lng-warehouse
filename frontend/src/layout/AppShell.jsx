@@ -29,24 +29,18 @@ import { useThemeMode } from '../theme'
 
 const DRAWER_WIDTH = 272
 
+// Staff (admin + sub-admin) share one menu; items with `perm` only show when the user holds it.
 const NAV = {
-  ADMIN: [
+  STAFF: [
     { to: '/', label: 'Dashboard', short: 'Home', icon: <DashboardIcon /> },
     { to: '/warehouse', label: 'Warehouse', short: 'Stock', icon: <WarehouseIcon /> },
     { to: '/requests', label: 'Branch orders', short: 'Orders', icon: <AssignmentIcon />, badge: true },
     { to: '/sales', label: 'Selling records', short: 'Sales', icon: <ReceiptIcon /> },
     { to: '/holdings', label: 'Branch holdings', short: 'Holdings', icon: <BusinessIcon /> },
-    { to: '/products', label: 'Products', short: 'Products', icon: <InventoryIcon /> },
-    { to: '/branches', label: 'Branches', short: 'Branches', icon: <StoreIcon /> },
-    { to: '/users', label: 'Users', short: 'Users', icon: <PeopleIcon /> },
-    { to: '/movements', label: 'Stock movements', short: 'Movements', icon: <HistoryIcon /> }
-  ],
-  SUBADMIN: [
-    { to: '/', label: 'Dashboard', short: 'Home', icon: <DashboardIcon /> },
-    { to: '/warehouse', label: 'Warehouse stock', short: 'Stock', icon: <WarehouseIcon /> },
-    { to: '/requests', label: 'Branch orders', short: 'Orders', icon: <AssignmentIcon />, badge: true },
-    { to: '/holdings', label: 'Branch holdings', short: 'Holdings', icon: <BusinessIcon /> },
-    { to: '/sales', label: 'Selling records', short: 'Sales', icon: <ReceiptIcon /> }
+    { to: '/products', label: 'Products', short: 'Products', icon: <InventoryIcon />, perm: 'PRODUCTS_MANAGE' },
+    { to: '/branches', label: 'Branches', short: 'Branches', icon: <StoreIcon />, perm: 'BRANCHES_MANAGE' },
+    { to: '/users', label: 'Users', short: 'Users', icon: <PeopleIcon />, perm: 'USERS_MANAGE' },
+    { to: '/movements', label: 'Stock movements', short: 'Movements', icon: <HistoryIcon />, perm: 'MOVEMENTS_VIEW' }
   ],
   BRANCH_USER: [
     { to: '/', label: 'Dashboard', short: 'Home', icon: <DashboardIcon /> },
@@ -60,8 +54,7 @@ const NAV = {
 
 // Destinations pinned to the phone's bottom bar; the rest go under "More"
 const PINNED = {
-  ADMIN: ['/', '/warehouse', '/requests', '/sales'],
-  SUBADMIN: ['/', '/warehouse', '/requests', '/holdings'],
+  STAFF: ['/', '/warehouse', '/requests', '/sales'],
   BRANCH_USER: ['/', '/warehouse', '/create-request', '/requests']
 }
 
@@ -70,7 +63,7 @@ const ROLE_LABEL = { ADMIN: 'Administrator', SUBADMIN: 'Sub-admin', BRANCH_USER:
 const isActive = (pathname, to) => (to === '/' ? pathname === '/' : pathname === to || pathname.startsWith(`${to}/`))
 
 export default function AppShell() {
-  const { user, logout } = useAuth()
+  const { user, logout, can } = useAuth()
   const { mode, toggle } = useThemeMode()
   const theme = useTheme()
   const mobile = useMediaQuery(theme.breakpoints.down('md'))
@@ -78,9 +71,10 @@ export default function AppShell() {
   const location = useLocation()
 
   const role = user?.role || 'BRANCH_USER'
-  const items = NAV[role] || NAV.BRANCH_USER
-  const pinned = useMemo(() => items.filter((i) => PINNED[role]?.includes(i.to)), [items, role])
-  const more = useMemo(() => items.filter((i) => !PINNED[role]?.includes(i.to)), [items, role])
+  const group = role === 'BRANCH_USER' ? 'BRANCH_USER' : 'STAFF'
+  const items = useMemo(() => NAV[group].filter((i) => !i.perm || can(i.perm)), [group, user]) // eslint-disable-line react-hooks/exhaustive-deps
+  const pinned = useMemo(() => items.filter((i) => PINNED[group].includes(i.to)), [items, group])
+  const more = useMemo(() => items.filter((i) => !PINNED[group].includes(i.to)), [items, group])
 
   const [openRequests, setOpenRequests] = useState(0)
   const [moreOpen, setMoreOpen] = useState(false)

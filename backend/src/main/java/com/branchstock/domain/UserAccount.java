@@ -5,8 +5,8 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
 
 @Document(collection = "users")
 @Getter
@@ -35,6 +35,7 @@ public class UserAccount {
     @Builder.Default
     private boolean active = true;
 
+    /** Only meaningful for SUBADMIN: names of {@link Permission} granted by an admin. */
     @Builder.Default
-    private Map<String, Boolean> subadminConfig = new HashMap<>();
+    private List<String> permissions = new ArrayList<>();
 }

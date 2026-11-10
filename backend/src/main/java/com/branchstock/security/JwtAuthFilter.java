@@ -1,5 +1,8 @@
 package com.branchstock.security;
 
+import com.branchstock.domain.Permission;
+import org.springframework.security.core.GrantedAuthority;
+import java.util.ArrayList;
 import com.branchstock.domain.UserAccount;
 import com.branchstock.repo.UserAccountRepository;
 import jakarta.servlet.FilterChain;
@@ -38,11 +41,12 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 UserAccount user = userRepo.findByUsername(username).orElse(null);
                 if (user != null && user.isActive()
                         && JwtService.passwordStamp(user).equals(jwtService.extractPasswordStamp(token))) {
-                    var auth = new UsernamePasswordAuthenticationToken(
-                            username,
-                            null,
-                            List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()))
-                    );
+                    List<GrantedAuthority> authorities = new ArrayList<>();
+                    authorities.add(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()));
+                    for (Permission permission : Permission.effective(user)) {
+                        authorities.add(new SimpleGrantedAuthority(permission.authority()));
+                    }
+                    var auth = new UsernamePasswordAuthenticationToken(username, null, authorities);
                     SecurityContextHolder.getContext().setAuthentication(auth);
                 }
             } catch (Exception ignored) {
