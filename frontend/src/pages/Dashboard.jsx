@@ -61,7 +61,9 @@ export default function Dashboard() {
         <Button variant={can('REQUESTS_APPROVE') ? 'outlined' : 'contained'} startIcon={<WarehouseIcon />} onClick={() => navigate('/warehouse')}>Restock</Button>
       )}
     </>
-  ) : null (
+  ) : null
+
+  return (
     <Stack spacing={3}>
       <PageHeader
         title={`Hello, ${(user?.displayName || user?.username || '').split(' ')[0]}`}
