@@ -1,6 +1,7 @@
 /* Mobile "app" feel */
 html { -webkit-text-size-adjust: 100%; }
 body {
+  overflow-x: clip; /* safety net: never let the page scroll sideways */
   -webkit-tap-highlight-color: transparent;
   overscroll-behavior-y: none;
   -webkit-font-smoothing: antialiased;

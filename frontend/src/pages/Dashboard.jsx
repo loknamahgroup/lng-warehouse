@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Alert, Avatar, Box, Button, Card, CardContent, Chip, Grid, IconButton, LinearProgress, Stack, Tooltip, Typography } from '@mui/material'
+import { Alert, Avatar, Box, Button, Card, CardContent, Chip, LinearProgress, Stack, Typography } from '@mui/material'
 import { alpha, useTheme } from '@mui/material/styles'
 import WarehouseIcon from '@mui/icons-material/WarehouseOutlined'
 import AssignmentIcon from '@mui/icons-material/AssignmentOutlined'
@@ -13,19 +13,19 @@ import api from '../api'
 import { useAuth } from '../auth'
 import { EmptyState, Loading, PageHeader } from '../components/common'
 
-function Stat({ label, value, hint, icon, color = 'primary' }) {
+function Stat({ label, value, hint, icon, color = 'primary', sx }) {
   const theme = useTheme()
   return (
-    <Card sx={{ height: '100%' }}>
-      <CardContent>
-        <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
-          <Box>
-            <Typography variant="body2" color="text.secondary">{label}</Typography>
-            <Typography variant="h4" sx={{ mt: 0.5 }}>{Number(value ?? 0).toLocaleString()}</Typography>
+    <Card sx={{ height: '100%', minWidth: 0, ...sx }}>
+      <CardContent sx={{ p: { xs: 1.5, sm: 2 }, '&:last-child': { pb: { xs: 1.5, sm: 2 } } }}>
+        <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
+          <Box sx={{ minWidth: 0 }}>
+            <Typography variant="body2" color="text.secondary" noWrap>{label}</Typography>
+            <Typography variant="h4" sx={{ mt: 0.5, fontSize: { xs: '1.6rem', sm: '2.125rem' } }}>{Number(value ?? 0).toLocaleString()}</Typography>
           </Box>
-          <Avatar variant="rounded" sx={{ bgcolor: alpha(theme.palette[color].main, 0.14), color: `${color}.main` }}>{icon}</Avatar>
+          <Avatar variant="rounded" sx={{ flexShrink: 0, width: { xs: 36, sm: 44 }, height: { xs: 36, sm: 44 }, bgcolor: alpha(theme.palette[color].main, 0.14), color: `${color}.main` }}>{icon}</Avatar>
         </Stack>
-        {hint && <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>{hint}</Typography>}
+        {hint && <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1, lineHeight: 1.3 }}>{hint}</Typography>}
       </CardContent>
     </Card>
   )
@@ -67,25 +67,22 @@ export default function Dashboard() {
         actions={actions}
       />
 
-      <Grid container spacing={2}>
-        <Grid item xs={6} md={3}><Stat label="On hand" value={data.warehouseOnHand} hint="Units in the warehouse" icon={<WarehouseIcon />} /></Grid>
-        <Grid item xs={6} md={3}><Stat label="Reserved" value={data.warehouseReserved} hint="Blocked for open requests" icon={<AssignmentIcon />} color="warning" /></Grid>
-        <Grid item xs={6} md={3}><Stat label="Available" value={data.warehouseAvailable} hint="Can still be requested" icon={<InventoryIcon />} color="success" /></Grid>
-        <Grid item xs={6} md={3}><Stat label={isBranchUser ? 'My open requests' : 'Open requests'} value={data.openRequests} hint="Waiting for approval" icon={<HistoryIcon />} color="secondary" /></Grid>
-        {!isBranchUser && (
-          <>
-            <Grid item xs={6} md={4}><Stat label="Products" value={data.productCount} icon={<InventoryIcon />} color="info" /></Grid>
-            <Grid item xs={6} md={4}><Stat label="Branches" value={data.branchCount} icon={<StoreIcon />} color="info" /></Grid>
-          </>
-        )}
-        <Grid item xs={12} md={isBranchUser ? 12 : 4}>
-          <Stat label={isBranchUser ? 'Units at my branch' : 'Units at branches'} value={data.totalBranchHoldings} hint="Already received at shops" icon={<BusinessIcon />} color="secondary" />
-        </Grid>
-      </Grid>
+      <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', md: 'repeat(4, minmax(0, 1fr))' } }}>
+        <Stat label="On hand" value={data.warehouseOnHand} hint="Units in the warehouse" icon={<WarehouseIcon />} />
+        <Stat label="Reserved" value={data.warehouseReserved} hint="Blocked for open requests" icon={<AssignmentIcon />} color="warning" />
+        <Stat label="Available" value={data.warehouseAvailable} hint="Can still be requested" icon={<InventoryIcon />} color="success" />
+        <Stat label={isBranchUser ? 'My open requests' : 'Open requests'} value={data.openRequests} hint="Waiting for approval" icon={<HistoryIcon />} color="secondary" />
+        {!isBranchUser && <Stat label="Products" value={data.productCount} icon={<InventoryIcon />} color="info" />}
+        {!isBranchUser && <Stat label="Branches" value={data.branchCount} icon={<StoreIcon />} color="info" />}
+        <Stat
+          label={isBranchUser ? 'Units at my branch' : 'Units at branches'} value={data.totalBranchHoldings}
+          hint="Already received at shops" icon={<BusinessIcon />} color="secondary"
+          sx={{ gridColumn: { xs: 'span 2', md: 'span 2' } }}
+        />
+      </Box>
 
-      <Grid container spacing={2}>
-        <Grid item xs={12} md={6}>
-          <Card sx={{ height: '100%' }}>
+      <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: 'repeat(2, minmax(0, 1fr))' } }}>
+          <Card sx={{ height: '100%', minWidth: 0 }}>
             <CardContent>
               <Typography variant="h6" sx={{ mb: 2 }}>Low stock</Typography>
               {data.lowStock.length === 0 ? (
@@ -95,7 +92,7 @@ export default function Dashboard() {
                   {data.lowStock.map((s) => (
                     <Box key={s.productId}>
                       <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
-                        <Typography variant="body2" sx={{ fontWeight: 500 }} noWrap>{s.sku} · {s.name}</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 500, minWidth: 0 }} noWrap>{s.sku} · {s.name}</Typography>
                         <Chip size="small" color={s.available <= 0 ? 'error' : 'warning'} label={`${s.available} / ${s.reorderLevel}`} />
                       </Stack>
                       <LinearProgress
@@ -109,9 +106,7 @@ export default function Dashboard() {
               )}
             </CardContent>
           </Card>
-        </Grid>
-        <Grid item xs={12} md={6}>
-          <Card sx={{ height: '100%' }}>
+          <Card sx={{ height: '100%', minWidth: 0 }}>
             <CardContent>
               <Typography variant="h6" sx={{ mb: 2 }}>{isBranchUser ? 'My holdings' : 'Holdings by branch'}</Typography>
               {data.holdingsByBranch.length === 0 ? (
@@ -121,7 +116,7 @@ export default function Dashboard() {
                   {data.holdingsByBranch.map((h) => (
                     <Box key={h.branchId}>
                       <Stack direction="row" justifyContent="space-between" spacing={1}>
-                        <Typography variant="body2" sx={{ fontWeight: 500 }} noWrap>{h.branchName}</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 500, minWidth: 0 }} noWrap>{h.branchName}</Typography>
                         <Typography variant="body2" color="text.secondary">{h.totalUnits} units · {h.productLines} products</Typography>
                       </Stack>
                       <LinearProgress variant="determinate" value={(h.totalUnits / maxUnits) * 100} sx={{ mt: 0.75, height: 6, borderRadius: 3 }} />
@@ -131,8 +126,7 @@ export default function Dashboard() {
               )}
             </CardContent>
           </Card>
-        </Grid>
-      </Grid>
+      </Box>
     </Stack>
   )
 }
