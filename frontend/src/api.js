@@ -16,7 +16,7 @@ api.interceptors.response.use(
     if (err.response?.status === 401 && !window.location.pathname.startsWith('/login')) {
       localStorage.removeItem('bs_token')
       localStorage.removeItem('bs_user')
-      window.location.href = '/login'
+      window.location.href = '/login?expired=1'
     }
     return Promise.reject(err)
   }

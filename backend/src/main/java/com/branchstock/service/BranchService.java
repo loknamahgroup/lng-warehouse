@@ -21,7 +21,17 @@ public class BranchService {
         return branchRepo.findAll().stream().map(this::toDto).toList();
     }
 
+    private void validate(BranchDto dto, boolean needCode) {
+        if (needCode && (dto.code() == null || dto.code().isBlank())) {
+            throw new ApiException("Branch code is required");
+        }
+        if (dto.name() == null || dto.name().isBlank()) {
+            throw new ApiException("Branch name is required");
+        }
+    }
+
     public BranchDto create(BranchDto dto) {
+        validate(dto, true);
         if (branchRepo.existsByCode(dto.code().trim().toUpperCase())) {
             throw new ApiException("Branch code already exists");
         }
@@ -35,6 +45,7 @@ public class BranchService {
     }
 
     public BranchDto update(String id, BranchDto dto) {
+        validate(dto, false);
         Branch branch = branchRepo.findById(id).orElseThrow(() -> new ApiException("Branch not found"));
         branch.setName(dto.name().trim());
         branch.setAddress(dto.address());

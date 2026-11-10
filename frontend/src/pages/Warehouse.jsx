@@ -12,6 +12,7 @@ import HistoryIcon from '@mui/icons-material/History'
 import SearchIcon from '@mui/icons-material/Search'
 import api from '../api'
 import { useAuth } from '../auth'
+import { money } from '../format'
 import DataTable from '../components/DataTable'
 import { useFeedback } from '../components/Feedback'
 import { FilterBar, Loading, PageHeader, useIsMobile } from '../components/common'
@@ -238,14 +239,14 @@ export default function Warehouse() {
     { key: 'updatedBy', label: 'Updated by', render: (r) => r.updatedBy || '—' },
     { key: 'lineCount', label: 'Lines', align: 'right' },
     { key: 'totalQuantity', label: 'Total qty', align: 'right' },
-    { key: 'totalCost', label: 'Total cost', align: 'right', render: (r) => `$${Number(r.totalCost).toFixed(2)}` }
+    { key: 'totalCost', label: 'Total cost', align: 'right', render: (r) => `${money(r.totalCost)}` }
   ]
   const intakeLineColumns = [
     { key: 'productName', label: 'Product', mobile: 'title' },
     { key: 'sku', label: 'SKU', mobile: 'subtitle' },
     { key: 'quantity', label: 'Qty', align: 'right', mobile: 'badge' },
-    { key: 'unitCost', label: 'Unit cost', align: 'right', render: (l) => `$${Number(l.unitCost).toFixed(2)}` },
-    { key: 'lineCost', label: 'Line cost', align: 'right', render: (l) => `$${Number(l.lineCost).toFixed(2)}` },
+    { key: 'unitCost', label: 'Unit cost', align: 'right', render: (l) => `${money(l.unitCost)}` },
+    { key: 'lineCost', label: 'Line cost', align: 'right', render: (l) => `${money(l.lineCost)}` },
     { key: 'previousOnHand', label: 'Before', align: 'right' },
     { key: 'newOnHand', label: 'After', align: 'right' }
   ]
@@ -398,7 +399,7 @@ export default function Warehouse() {
                 <Typography variant="body2"><b>Login user:</b> {viewIntake.updatedByUsername}</Typography>
                 <Typography variant="body2"><b>Lines:</b> {viewIntake.lineCount}</Typography>
                 <Typography variant="body2"><b>Total qty:</b> {viewIntake.totalQuantity}</Typography>
-                <Typography variant="body2"><b>Total cost:</b> ${Number(viewIntake.totalCost).toFixed(2)}</Typography>
+                <Typography variant="body2"><b>Total cost:</b> {money(viewIntake.totalCost)}</Typography>
               </Stack>
               {viewIntake.note && <Typography variant="body2"><b>Note:</b> {viewIntake.note}</Typography>}
               {viewIntake.details && <Typography variant="body2"><b>Details:</b> {viewIntake.details}</Typography>}

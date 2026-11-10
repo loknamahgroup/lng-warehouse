@@ -15,6 +15,7 @@ import com.branchstock.dto.HoldingDto;
 import com.branchstock.dto.StockRequestDto;
 import com.branchstock.dto.StockRequestLineDto;
 import com.branchstock.repo.BranchHoldingRepository;
+import com.branchstock.repo.BranchRepository;
 import com.branchstock.repo.ProductRepository;
 import com.branchstock.repo.StockRequestRepository;
 import com.branchstock.repo.UserAccountRepository;
@@ -51,6 +52,7 @@ public class RequestService {
     private final WarehouseService warehouseService;
     private final CurrentUserService currentUser;
     private final MongoTemplate mongo;
+    private final BranchRepository branchRepo;
 
     public RequestService(
             StockRequestRepository requestRepo,
@@ -59,7 +61,8 @@ public class RequestService {
             UserAccountRepository userRepo,
             WarehouseService warehouseService,
             CurrentUserService currentUser,
-            MongoTemplate mongo
+            MongoTemplate mongo,
+            BranchRepository branchRepo
     ) {
         this.requestRepo = requestRepo;
         this.productRepo = productRepo;
@@ -68,6 +71,7 @@ public class RequestService {
         this.warehouseService = warehouseService;
         this.currentUser = currentUser;
         this.mongo = mongo;
+        this.branchRepo = branchRepo;
     }
 
     // ------------------------------------------------------------------ queries
@@ -112,6 +116,11 @@ public class RequestService {
             throw new ApiException("Only branch users can request stock");
         }
         String branchId = requireBranchId(user);
+        branchRepo.findById(branchId).ifPresent(b -> {
+            if (!b.isActive()) {
+                throw new ApiException("Your branch is inactive. Contact an administrator.");
+            }
+        });
         if (dto == null || dto.items() == null || dto.items().isEmpty()) {
             throw new ApiException("Add at least one item");
         }
